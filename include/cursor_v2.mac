@@ -1,0 +1,32 @@
+; cursor_v2.mac - Optimized 64-bit Cursor Macros
+%ifndef CURSOR_V2_MAC
+    %define CURSOR_V2_MAC
+
+; Move cursor to absolute X, Y
+%macro @goto_xy 2
+    mov rdi, %1    ; Row
+    mov rsi, %2    ; Column
+    call _cursor_goto_xy
+%endmacro
+
+; Move cursor relative (Up, Down, Forward, Backward)
+%macro @cursor_move 2
+    mov rdi, %1    ; Direction character ('A', 'B', 'C', or 'D')
+    mov rsi, %2    ; Count
+    call _cursor_move_relative
+%endmacro
+
+; Simple wrappers for static commands 
+%macro @cursor_home 0
+    call _cursor_home
+%endmacro
+
+%macro @cursor_save 0
+    call _cursor_save
+%endmacro
+
+%macro @cursor_restore 0
+    call _cursor_restore
+%endmacro
+
+%endif

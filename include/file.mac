@@ -1,0 +1,72 @@
+; file.mac - High-level File Macro's
+%ifndef FILE_MAC
+    %define FILE_MAC
+
+    %include "file_constants.inc"
+
+; Open een bestand (lezen)
+%macro @f_open_read 1
+    mov rdi, %1
+    mov rsi, O_RDONLY
+    mov rdx, 0
+    call _file_open
+%endmacro
+
+; Open of maak een bestand (schrijven)
+%macro @f_open_write 1
+    mov rdi, %1
+    mov rsi, O_WRONLY | O_CREAT | O_TRUNC
+    mov rdx, 0644q          ; rw-r--r--
+    call _file_open
+%endmacro
+
+; Lees data uit een file descriptor
+%macro @f_read 3
+    mov rdi, %1             ; FD
+    mov rsi, %2             ; Buffer
+    mov rdx, %3             ; Lengte
+    call _file_read
+%endmacro
+
+; Schrijf data naar een file descriptor
+%macro @f_write 3
+    mov rdi, %1             ; FD
+    mov rsi, %2             ; Buffer
+    mov rdx, %3             ; Lengte
+    call _file_write
+%endmacro
+
+; Sluit een bestand
+%macro @f_close 1
+    mov rdi, %1
+    call _file_close
+%endmacro
+
+; Verplaats de cursor (Seek)
+%macro @f_seek 3
+    mov rdi, %1             ; FD
+    mov rsi, %2             ; Offset
+    mov rdx, %3             ; Whence
+    call _file_seek
+%endmacro
+
+; Bestaat het bestand?
+%macro @f_exists 1
+    mov rdi, %1
+    call _file_exists
+%endmacro
+
+; Verwijder een bestand
+%macro @f_delete 1
+    mov rdi, %1
+    call _file_delete
+%endmacro
+
+; Hernoem een bestand
+%macro @f_rename 2
+    mov rdi, %1             ; Old
+    mov rsi, %2             ; New
+    call _file_rename
+%endmacro
+
+%endif

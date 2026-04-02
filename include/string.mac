@@ -1,0 +1,83 @@
+; string.mac - Macro's voor eenvoudige string-manipulatie
+%ifndef STRING_MAC
+    %define STRING_MAC
+
+; --- Vergelijk twee strings ---
+; Gebruik: @str_cmp string1, string2
+; Resultaat: RAX is 0 als ze gelijk zijn
+%macro @str_cmp 2
+    mov rdi, %1
+    mov rsi, %2
+    call _str_compare
+%endmacro
+
+; --- Kopieer een string ---
+; Gebruik: @str_copy bestemming, bron
+%macro @str_copy 2
+    mov rdi, %1
+    mov rsi, %2
+    call _str_copy
+%endmacro
+
+; --- Voeg strings samen (Concatenatie) ---
+; Gebruik: @str_cat basis_string, extra_stuk
+%macro @str_cat 2
+    mov rdi, %1
+    mov rsi, %2
+    call _str_concat
+%endmacro
+
+; --- Zoek een substring ---
+; Gebruik: @str_find hooiberg, naald
+; Resultaat: RAX = pointer naar de match
+%macro @str_find 2
+    mov rdi, %1
+    mov rsi, %2
+    call _str_find
+%endmacro
+
+; --- Trim spaties ---
+; Gebruik: @str_trim string_pointer
+%macro @str_trim 1
+    mov rdi, %1
+    call _str_trim
+%endmacro
+
+; --- Naar Hoofdletters ---
+%macro @str_upper 1
+    mov rdi, %1
+    call _str_to_upper
+%endmacro
+
+; --- Naar Kleine Letters ---
+%macro @str_lower 1
+    mov rdi, %1
+    call _str_to_lower
+%endmacro
+
+; --- Is Numeriek? ---
+%macro @str_is_num 1
+    mov rdi, %1
+    call _str_is_numeric
+%endmacro
+
+; --- String Omdraaien ---
+%macro @str_rev 1
+    mov rdi, %1
+    call _str_reverse
+%endmacro
+
+; --- String naar Integer ---
+%macro @str_to_int 1
+    mov rdi, %1
+    call _str_to_int
+%endmacro
+
+; --- Integer naar String ---
+%macro @int_to_str 2
+    mov rax, %1
+    mov rdi, %2
+    call _int_to_str
+%endmacro
+
+%endif

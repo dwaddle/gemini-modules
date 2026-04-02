@@ -1,0 +1,31 @@
+; screen.mac - Screen Control Macros
+%ifndef SCREEN_MAC
+    %define SCREEN_MAC
+
+; Wist scherm
+%macro @cls 0
+    call _screen_clear
+%endmacro
+
+; Reset kleur
+%macro @reset_color 0
+    call _screen_reset_color
+%endmacro
+
+; Verberg cursor
+%macro @hide_cursor 0
+    call _screen_hide_cursor
+%endmacro
+
+; Toon cursor
+%macro @show_cursor 0
+    call _screen_show_cursor
+%endmacro
+
+; Stel achtergrondkleur in
+%macro @bg_color 1
+    mov rdi, %1
+    call _screen_set_bgcolor
+%endmacro
+
+%endif
