@@ -28,4 +28,16 @@
     call _screen_set_bgcolor
 %endmacro
 
+; Scroll omhoog
+%macro @scroll_up 1
+    mov rdi, %1
+    call _screen_scroll_up
+%endmacro
+
+; Scroll omlaag
+%macro @scroll_down 1
+    mov rdi, %1
+    call _screen_scroll_down
+%endmacro
+
 %endif

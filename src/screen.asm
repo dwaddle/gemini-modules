@@ -8,10 +8,52 @@ section .data
     esc_show     db 27, '[?25h', 0         ; Toon cursor
     esc_bg_pre   db 27, '[4', 0            ; Prefix voor achtergrondkleur (ESC[4[0-7]m)
     m_char       db 'm', 0
+    esc_scroll_pre db 27, '[', 0
 
 section .text
-    global _screen_clear, _screen_reset_color, _screen_set_bgcolor, _screen_hide_cursor, _screen_show_cursor
-    extern PrintString
+    global _screen_clear, _screen_reset_color, _screen_set_bgcolor, _screen_hide_cursor, _screen_show_cursor, _screen_scroll_up, _screen_scroll_down
+    extern PrintString, _int_to_str
+
+; ... (rest of functions) ...
+
+; --- [ Scroll Up ] ---
+; Input: RDI = Aantal regels
+_screen_scroll_up:
+    @save_context
+    push 'S'
+    jmp _screen_scroll_generic
+
+; --- [ Scroll Down ] ---
+; Input: RDI = Aantal regels
+_screen_scroll_down:
+    @save_context
+    push 'T'
+
+_screen_scroll_generic:
+    mov rax, rdi        ; RDI was input
+    sub rsp, 16
+    mov rdi, rsp
+    call _int_to_str
+    
+    ; Print ESC[
+    mov rdi, esc_scroll_pre
+    call PrintString
+    
+    ; Print count
+    mov rdi, rsp
+    call PrintString
+    
+    ; Print suffix ('S' of 'T')
+    mov rbx, [rsp + 16] ; De 'S' of 'T' die we gepusht hebben
+    mov [rsp], bl
+    mov byte [rsp + 1], 0
+    mov rdi, rsp
+    call PrintString
+    
+    add rsp, 16
+    pop rax             ; Verwijder gepushte suffix van stack
+    @restore_context
+    ret
 
 ; --- [ Wist Scherm ] ---
 _screen_clear:
