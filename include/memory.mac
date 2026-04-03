@@ -1,0 +1,41 @@
+; memory.mac - Memory Control Macros
+%ifndef MEMORY_MAC
+    %define MEMORY_MAC
+
+; Alloceren
+%macro @mem_alloc 1
+    mov rdi, %1
+    call _mem_alloc
+%endmacro
+
+; Vrijgeven (Voor nu een placeholder)
+%macro @mem_free 1
+    mov rdi, %1
+    call _mem_free
+%endmacro
+
+; Kopiëren
+%macro @mem_copy 3
+    mov rdi, %1             ; Dest
+    mov rsi, %2             ; Src
+    mov rdx, %3             ; Count
+    call _mem_copy
+%endmacro
+
+; Vullen
+%macro @mem_set 3
+    mov rdi, %1             ; Dest
+    mov rsi, %2             ; Waarde
+    mov rdx, %3             ; Count
+    call _mem_set
+%endmacro
+
+; Vergelijken
+%macro @mem_cmp 3
+    mov rdi, %1             ; Buf1
+    mov rsi, %2             ; Buf2
+    mov rdx, %3             ; Count
+    call _mem_compare
+%endmacro
+
+%endif

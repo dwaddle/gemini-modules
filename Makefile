@@ -15,10 +15,10 @@ OBJ_DIR  = build
 INC_DIR  = include
 
 # Modules (all compiled objects needed for linking)
-ALL_MODULES = $(OBJ_DIR)/io.o $(OBJ_DIR)/string.o $(OBJ_DIR)/file.o $(OBJ_DIR)/cursor.o $(OBJ_DIR)/screen.o
+ALL_MODULES = $(OBJ_DIR)/io.o $(OBJ_DIR)/string.o $(OBJ_DIR)/file.o $(OBJ_DIR)/cursor.o $(OBJ_DIR)/screen.o $(OBJ_DIR)/memory.o
 
 # Tests
-TESTS = test_io test_io_v2 test_string test_file
+TESTS = test_io test_io_v2 test_string test_file test_memory
 
 # Targets
 .PHONY: all clean $(TESTS) run_tests
@@ -50,6 +50,9 @@ test_string: $(OBJ_DIR)/test_string
 
 test_file: $(OBJ_DIR)/test_file
 	./$(OBJ_DIR)/test_file
+
+test_memory: $(OBJ_DIR)/test_memory
+	./$(OBJ_DIR)/test_memory
 
 # Run all tests
 run_tests: $(TESTS)
