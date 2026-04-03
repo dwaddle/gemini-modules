@@ -14,26 +14,16 @@ TEST_DIR = tests
 OBJ_DIR  = build
 INC_DIR  = include
 
-# Modules (all compiled objects needed for linking)
+# Modules
 ALL_MODULES = $(OBJ_DIR)/io.o $(OBJ_DIR)/string.o $(OBJ_DIR)/file.o $(OBJ_DIR)/cursor.o $(OBJ_DIR)/screen.o $(OBJ_DIR)/memory.o
 
 # Tests
-TESTS = test_io test_io_v2 test_string test_file test_memory test_screen_buffer
+TESTS = test_io test_io_v2 test_string test_file test_memory test_screen_buffer test_viewports
 
 # Targets
 .PHONY: all clean $(TESTS) run_tests dashboard
 
 all: $(TESTS) dashboard
-
-# ...
-
-# Sample target
-dashboard: $(OBJ_DIR)/dashboard
-	./$(OBJ_DIR)/dashboard
-
-$(OBJ_DIR)/dashboard: samples/dashboard/dashboard.asm $(ALL_MODULES)
-	$(ASM) $(ASM_FLAGS) samples/dashboard/dashboard.asm -o $(OBJ_DIR)/dashboard.o
-	$(LD) $(LD_FLAGS) $(OBJ_DIR)/dashboard.o $(ALL_MODULES) -o $@
 
 # Create build directory
 $(OBJ_DIR):
@@ -66,6 +56,17 @@ test_memory: $(OBJ_DIR)/test_memory
 
 test_screen_buffer: $(OBJ_DIR)/test_screen_buffer
 	./$(OBJ_DIR)/test_screen_buffer
+
+test_viewports: $(OBJ_DIR)/test_viewports
+	./$(OBJ_DIR)/test_viewports
+
+# Sample target
+dashboard: $(OBJ_DIR)/dashboard
+	./$(OBJ_DIR)/dashboard
+
+$(OBJ_DIR)/dashboard: samples/dashboard/dashboard.asm $(ALL_MODULES)
+	$(ASM) $(ASM_FLAGS) samples/dashboard/dashboard.asm -o $(OBJ_DIR)/dashboard.o
+	$(LD) $(LD_FLAGS) $(OBJ_DIR)/dashboard.o $(ALL_MODULES) -o $@
 
 # Run all tests
 run_tests: $(TESTS)

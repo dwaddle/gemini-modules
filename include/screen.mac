@@ -1,68 +1,70 @@
-; screen.mac - Screen Control Macros
+; screen.mac - Screen Control & Viewport Macros
 %ifndef SCREEN_MAC
     %define SCREEN_MAC
 
-; Wist scherm
+; Viewport Structuur Offsets
+%define VP_X        0
+%define VP_Y        8
+%define VP_W        16
+%define VP_H        24
+%define VP_BUF      32
+%define VP_BUF_H    40
+%define VP_VIEW_Y   48
+%define VP_SIZE     56
+
+; --- Algemene Scherm Macro's ---
 %macro @cls 0
     call _screen_clear
 %endmacro
 
-; Reset kleur
 %macro @reset_color 0
     call _screen_reset_color
 %endmacro
 
-; Verberg cursor
 %macro @hide_cursor 0
     call _screen_hide_cursor
 %endmacro
 
-; Toon cursor
 %macro @show_cursor 0
     call _screen_show_cursor
 %endmacro
 
-; Stel achtergrondkleur in
-%macro @bg_color 1
+; --- Viewport Specifieke Macro's ---
+
+; Maak een nieuwe viewport
+; Gebruik: @vp_create x, y, w, h, buf_h
+; RAX bevat de pointer naar de nieuwe viewport structuur
+%macro @vp_create 5
+    mov rdi, %1 ; X
+    mov rsi, %2 ; Y
+    mov rdx, %3 ; W
+    mov rcx, %4 ; H
+    mov r8,  %5 ; BufH
+    call _viewport_create
+%endmacro
+
+; Schrijf naar viewport
+; Gebruik: @vp_write vp_ptr, x, y, string_ptr
+%macro @vp_write 4
     mov rdi, %1
-    call _screen_set_bgcolor
+    mov rsi, %2
+    mov rdx, %3
+    mov rcx, %4
+    call _viewport_write
 %endmacro
 
-; Scroll omhoog
-%macro @scroll_up 1
+; Render viewport
+%macro @vp_render 1
     mov rdi, %1
-    call _screen_scroll_up
+    call _viewport_render
 %endmacro
 
-; Scroll omlaag
-%macro @scroll_down 1
+; Scroll viewport
+; Gebruik: @vp_scroll vp_ptr, n (+ of -)
+%macro @vp_scroll 2
     mov rdi, %1
-    call _screen_scroll_down
-%endmacro
-
-; Buffer Initialiseren
-%macro @buf_init 1
-    mov rdi, %1
-    call _screen_buffer_init
-%endmacro
-
-; Schrijven naar Buffer
-%macro @buf_write 3
-    mov rdi, %1             ; X
-    mov rsi, %2             ; Y
-    mov rdx, %3             ; String
-    call _screen_buffer_write
-%endmacro
-
-; Render Buffer
-%macro @buf_render 0
-    call _screen_buffer_render
-%endmacro
-
-; Scroll View
-%macro @buf_scroll 1
-    mov rdi, %1
-    call _screen_buffer_scroll_view
+    mov rsi, %2
+    call _viewport_scroll
 %endmacro
 
 %endif

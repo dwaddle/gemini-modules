@@ -1,6 +1,7 @@
-; screen.asm - Screen Control Functions with Virtual Buffer (x86_64 Linux)
+; screen.asm - Viewport-based Screen Control (x86_64 Linux)
 %include "algemeen.mac"
 %include "syscalls.inc"
+%include "screen.mac"
 
 section .data
     esc_clear       db 27, '[2J', 27, '[H', 0
@@ -10,149 +11,152 @@ section .data
     esc_bg_pre      db 27, '[4', 0
     esc_scroll_pre  db 27, '[', 0
 
-    ; Buffer Data
-    v_buffer_ptr    dq 0
-    v_buffer_width  dq 80
-    v_buffer_height dq 0
-    v_view_y        dq 0                     ; Huidige scroll positie (start rij)
-    v_screen_height dq 24                    ; Aantal zichtbare regels (veiligheidsmarge)
-
 section .text
     global _screen_clear, _screen_reset_color, _screen_set_bgcolor, _screen_hide_cursor, _screen_show_cursor
-    global _screen_scroll_up, _screen_scroll_down
-    global _screen_buffer_init, _screen_buffer_write, _screen_buffer_render, _screen_buffer_scroll_view, _screen_buffer_clear
+    global _viewport_create, _viewport_write, _viewport_render, _viewport_scroll, _viewport_clear
     
     extern PrintString, _int_to_str, _mem_alloc, _mem_set, _mem_copy, _cursor_goto_xy, _strlen
 
-; --- [ Buffer Initialiseren ] ---
-; Input: RDI = Aantal regels (Hoogte)
-_screen_buffer_init:
+; --- [ Viewport Aanmaken ] ---
+; Input: RDI=X, RSI=Y, RDX=W, RCX=H, R8=BufH
+; Output: RAX = Pointer naar Viewport Struct
+_viewport_create:
     @save_context
-    mov [v_buffer_height], rdi
-    mov rax, rdi
-    mul qword [v_buffer_width]
+    mov r12, rdi ; X
+    mov r13, rsi ; Y
+    mov r14, rdx ; W
+    mov r15, rcx ; H
+    mov rbp, r8  ; BufH
+
+    ; 1. Alloceren van de structuur (56 bytes)
+    mov rdi, VP_SIZE
+    call _mem_alloc
+    push rax     ; Bewaar struct pointer
+
+    ; 2. Vul de structuur
+    mov [rax + VP_X], r12
+    mov [rax + VP_Y], r13
+    mov [rax + VP_W], r14
+    mov [rax + VP_H], r15
+    mov [rax + VP_BUF_H], rbp
+    mov qword [rax + VP_VIEW_Y], 0
+
+    ; 3. Alloceren van de tekstbuffer (BufH * W)
+    mov rax, rbp
+    mul r14
     mov rdi, rax
     call _mem_alloc
-    mov [v_buffer_ptr], rax
-    call _screen_buffer_clear
-    @restore_context
-    ret
-
-; --- [ Buffer Leegmaken ] ---
-_screen_buffer_clear:
-    @save_context
-    mov rax, [v_buffer_ptr]
-    test rax, rax
-    jz .done
+    
+    pop rbx      ; Haal struct pointer terug
+    mov [rbx + VP_BUF], rax
+    
+    ; 4. Buffer leegmaken (spaties)
     mov rdi, rax
     mov rsi, ' '
-    mov rax, [v_buffer_height]
-    mul qword [v_buffer_width]
+    mov rax, [rbx + VP_BUF_H]
+    mul qword [rbx + VP_W]
     mov rdx, rax
     call _mem_set
-.done:
+
+    mov rax, rbx ; Return struct pointer
     @restore_context
     ret
 
-; --- [ Schrijf naar Buffer ] ---
-; Input: RDI = X, RSI = Y, RDX = String Pointer
-_screen_buffer_write:
+; --- [ Schrijf naar Viewport ] ---
+; Input: RDI=VP_Ptr, RSI=LocalX, RDX=LocalY, RCX=String_Ptr
+_viewport_write:
     @save_context
-    mov r12, rdi        ; X
-    mov r13, rsi        ; Y
-    mov r14, rdx        ; String Pointer
-    
-    mov rax, [v_buffer_ptr]
-    test rax, rax
-    jz .done
+    mov r12, rdi ; VP
+    mov r13, rsi ; LX
+    mov r14, rdx ; LY
+    mov r15, rcx ; Str
 
-    ; 1. Bereken lengte
-    mov rdi, r14
+    ; 1. Bereken lengte en check bounds
+    mov rdi, r15
     call _strlen
-    mov r15, rax        ; Lengte
-    
-    ; 2. Truncatie check (X + lengte mag niet voorbij breedte)
-    mov rax, r12
-    add rax, r15
-    cmp rax, [v_buffer_width]
-    jle .do_copy
-    mov rax, [v_buffer_width]
-    sub rax, r12
-    mov r15, rax        ; Pas lengte aan
-.do_copy:
-    ; 3. Bereken offset in buffer: (Y * Width) + X
+    mov rbx, rax ; Lengte
+
+    ; Truncatie check breedte
     mov rax, r13
-    mul qword [v_buffer_width]
-    add rax, r12
-    add rax, [v_buffer_ptr]
+    add rax, rbx
+    cmp rax, [r12 + VP_W]
+    jle .do_copy
+    mov rax, [r12 + VP_W]
+    sub rax, r13
+    mov rbx, rax
+.do_copy:
+    ; 2. Bereken offset in buffer: (LY * W) + LX
+    mov rax, r14
+    mul qword [r12 + VP_W]
+    add rax, r13
+    add rax, [r12 + VP_BUF]
     
-    mov rdi, rax        ; Dest
-    mov rsi, r14        ; Src
-    mov rdx, r15        ; Count
+    mov rdi, rax ; Dest
+    mov rsi, r15 ; Src
+    mov rdx, rbx ; Count
     call _mem_copy
-.done:
     @restore_context
     ret
 
-; --- [ Render Buffer naar Scherm ] ---
-_screen_buffer_render:
+; --- [ Render Viewport ] ---
+; Input: RDI = VP_Ptr
+_viewport_render:
     @save_context
-    mov rax, [v_buffer_ptr]
-    test rax, rax
-    jz .done
+    mov r12, rdi ; VP
     
     call _screen_hide_cursor
-    call _screen_clear
     
-    mov r12, 0          ; r12 = huidige scherm-regel (0-23)
+    mov r13, 0   ; r13 = huidige zichtbare regel (0 tot VP_H-1)
 .line_loop:
-    ; Bereken welke buffer-regel we tekenen: v_view_y + r12
-    mov rax, [v_view_y]
-    add rax, r12
-    cmp rax, [v_buffer_height]
-    jae .finish_render
+    ; Bereken buffer regel index: VP_VIEW_Y + r13
+    mov rax, [r12 + VP_VIEW_Y]
+    add rax, r13
+    cmp rax, [r12 + VP_BUF_H]
+    jae .done_rendering
     
-    mul qword [v_buffer_width]
-    add rax, [v_buffer_ptr]
-    mov r13, rax        ; r13 = start van regel in buffer
+    ; Bereken start van regel in buffer
+    mul qword [r12 + VP_W]
+    add rax, [r12 + VP_BUF]
+    mov r14, rax ; r14 = buffer regel pointer
     
-    ; Zet cursor (Regel r12+1, Kolom 1)
-    mov rdi, r12
+    ; Zet cursor op fysieke schermpositie
+    ; Rij = VP_Y + r13 + 1, Kolom = VP_X + 1
+    mov rdi, [r12 + VP_Y]
+    add rdi, r13
     inc rdi
-    mov rsi, 1
+    mov rsi, [r12 + VP_X]
+    inc rsi
     call _cursor_goto_xy
     
-    ; Schrijf de hele regel in één keer (veel sneller)
+    ; Schrijf de regel
     mov rax, SYS_WRITE
     mov rdi, 1
-    mov rsi, r13
-    mov rdx, [v_buffer_width]
+    mov rsi, r14
+    mov rdx, [r12 + VP_W]
     syscall
     
-    inc r12
-    cmp r12, [v_screen_height]
+    inc r13
+    cmp r13, [r12 + VP_H]
     jb .line_loop
 
-.finish_render:
+.done_rendering:
     call _screen_show_cursor
-.done:
     @restore_context
     ret
 
-; --- [ Scroll View (Non-destructive) ] ---
-; Input: RDI = Aantal regels om te verschuiven (+ naar beneden, - naar boven)
-_screen_buffer_scroll_view:
+; --- [ Scroll Viewport ] ---
+; Input: RDI = VP_Ptr, RSI = Aantal (+/-)
+_viewport_scroll:
     @save_context
-    mov rax, [v_view_y]
-    add rax, rdi
+    mov r12, rdi
+    mov rax, [r12 + VP_VIEW_Y]
+    add rax, rsi
     
-    ; Check ondergrens (0)
     test rax, rax
     js .set_zero
     
-    ; Check bovengrens (max height - screen height)
-    mov rbx, [v_buffer_height]
-    sub rbx, [v_screen_height]
+    mov rbx, [r12 + VP_BUF_H]
+    sub rbx, [r12 + VP_H]
     cmp rax, rbx
     jle .update
     mov rax, rbx
@@ -160,12 +164,13 @@ _screen_buffer_scroll_view:
 .set_zero:
     xor rax, rax
 .update:
-    mov [v_view_y], rax
-    call _screen_buffer_render
+    mov [r12 + VP_VIEW_Y], rax
+    mov rdi, r12
+    call _viewport_render
     @restore_context
     ret
 
-; --- [ Basis Functies ] ---
+; --- [ Algemene Functies ] ---
 _screen_clear:
     mov rdi, esc_clear
     call PrintString
@@ -184,37 +189,6 @@ _screen_hide_cursor:
 _screen_show_cursor:
     mov rdi, esc_show
     call PrintString
-    ret
-
-_screen_scroll_up:
-    @save_context
-    mov rsi, 'S'
-    call _screen_scroll_logic
-    @restore_context
-    ret
-
-_screen_scroll_down:
-    @save_context
-    mov rsi, 'T'
-    call _screen_scroll_logic
-    @restore_context
-    ret
-
-_screen_scroll_logic:
-    mov r12, rsi        ; Suffix
-    mov rax, rdi        ; Aantal
-    sub rsp, 16
-    mov rdi, rsp
-    call _int_to_str
-    mov rdi, esc_scroll_pre
-    call PrintString
-    mov rdi, rsp
-    call PrintString
-    mov [rsp], r12b
-    mov byte [rsp+1], 0
-    mov rdi, rsp
-    call PrintString
-    add rsp, 16
     ret
 
 _screen_set_bgcolor:
