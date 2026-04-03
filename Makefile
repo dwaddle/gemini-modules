@@ -21,9 +21,19 @@ ALL_MODULES = $(OBJ_DIR)/io.o $(OBJ_DIR)/string.o $(OBJ_DIR)/file.o $(OBJ_DIR)/c
 TESTS = test_io test_io_v2 test_string test_file test_memory test_screen_buffer
 
 # Targets
-.PHONY: all clean $(TESTS) run_tests
+.PHONY: all clean $(TESTS) run_tests dashboard
 
-all: $(TESTS)
+all: $(TESTS) dashboard
+
+# ...
+
+# Sample target
+dashboard: $(OBJ_DIR)/dashboard
+	./$(OBJ_DIR)/dashboard
+
+$(OBJ_DIR)/dashboard: samples/dashboard/dashboard.asm $(ALL_MODULES)
+	$(ASM) $(ASM_FLAGS) samples/dashboard/dashboard.asm -o $(OBJ_DIR)/dashboard.o
+	$(LD) $(LD_FLAGS) $(OBJ_DIR)/dashboard.o $(ALL_MODULES) -o $@
 
 # Create build directory
 $(OBJ_DIR):
