@@ -6,16 +6,12 @@ section .data
     msg_int    db "Int test (1337): ", 0
     msg_color  db "Color test (Green)", 0
     msg_cursor db "Cursor test (Moving to 5, 5 and printing 'X')", 0
-    msg_scroll db "Full Screen Scroll Test: Printing 20 lines...", 10, 0
-    msg_line   db "Dit is test-regel nummer: ", 0
-    msg_up     db "Geprint. Druk op een toets om 10 regels OMHOOG te scrollen.", 0
-    msg_down   db "Gedaan. Druk op een toets om 10 regels OMLAAG te scrollen.", 0
-    msg_done   db "Klaar. Druk op een toets om te stoppen.", 0
+    msg_done   db "IO v2 Tests complete. Press any key to finish.", 0
 
 section .text
     global _start
     extern PrintString, PrintNewline, PrintHex, PrintInt, PrintColor, ReadChar
-    extern _screen_clear, _cursor_goto_xy, _screen_scroll_up, _screen_scroll_down
+    extern _screen_clear, _cursor_goto_xy
 
 _start:
     call _screen_clear
@@ -52,46 +48,10 @@ _start:
     call PrintString
     call PrintNewline
     
-    ; 5. Full Screen Scroll Test
-    call PrintNewline
-    mov rdi, msg_scroll
-    call PrintString
-    
-    ; Print 20 regels
-    mov rcx, 1
-.loop_lines:
-    push rcx
-    mov rdi, msg_line
-    call PrintString
-    pop rcx
-    push rcx
-    mov rdi, rcx
-    call PrintInt
-    call PrintNewline
-    pop rcx
-    inc rcx
-    cmp rcx, 21
-    jne .loop_lines
-    
-    ; Wacht op user
-    mov rdi, msg_up
-    call PrintString
-    call ReadChar
-    
-    ; Scroll 10 omhoog
-    mov rdi, 10
-    call _screen_scroll_up
-    
-    ; Wacht op user
-    mov rdi, msg_down
-    call PrintString
-    call ReadChar
-    
-    ; Scroll 10 omlaag
-    mov rdi, 10
-    call _screen_scroll_down
-    
-    ; 6. Done
+    ; 5. Done
+    mov rdi, 15
+    mov rsi, 1
+    call _cursor_goto_xy
     mov rdi, msg_done
     call PrintString
     call ReadChar
