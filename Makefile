@@ -18,7 +18,7 @@ INC_DIR  = include
 ALL_MODULES = $(OBJ_DIR)/io.o $(OBJ_DIR)/string.o $(OBJ_DIR)/file.o $(OBJ_DIR)/cursor.o $(OBJ_DIR)/screen.o $(OBJ_DIR)/memory.o
 
 # Tests
-TESTS = test_io test_io_v2 test_string test_file test_memory
+TESTS = test_io test_io_v2 test_string test_file test_memory test_screen_buffer
 
 # Targets
 .PHONY: all clean $(TESTS) run_tests
@@ -53,6 +53,9 @@ test_file: $(OBJ_DIR)/test_file
 
 test_memory: $(OBJ_DIR)/test_memory
 	./$(OBJ_DIR)/test_memory
+
+test_screen_buffer: $(OBJ_DIR)/test_screen_buffer
+	./$(OBJ_DIR)/test_screen_buffer
 
 # Run all tests
 run_tests: $(TESTS)

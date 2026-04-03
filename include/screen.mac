@@ -40,4 +40,29 @@
     call _screen_scroll_down
 %endmacro
 
+; Buffer Initialiseren
+%macro @buf_init 1
+    mov rdi, %1
+    call _screen_buffer_init
+%endmacro
+
+; Schrijven naar Buffer
+%macro @buf_write 3
+    mov rdi, %1             ; X
+    mov rsi, %2             ; Y
+    mov rdx, %3             ; String
+    call _screen_buffer_write
+%endmacro
+
+; Render Buffer
+%macro @buf_render 0
+    call _screen_buffer_render
+%endmacro
+
+; Scroll View
+%macro @buf_scroll 1
+    mov rdi, %1
+    call _screen_buffer_scroll_view
+%endmacro
+
 %endif
