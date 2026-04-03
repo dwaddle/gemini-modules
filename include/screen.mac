@@ -10,7 +10,13 @@
 %define VP_BUF      32
 %define VP_BUF_H    40
 %define VP_VIEW_Y   48
-%define VP_SIZE     56
+%define VP_FG       56
+%define VP_BG       57
+%define VP_FLAGS    58
+%define VP_SIZE     64
+
+; Viewport Flags
+%define VPF_BORDER  1
 
 ; --- Algemene Scherm Macro's ---
 %macro @cls 0
@@ -21,19 +27,8 @@
     call _screen_reset_color
 %endmacro
 
-%macro @hide_cursor 0
-    call _screen_hide_cursor
-%endmacro
-
-%macro @show_cursor 0
-    call _screen_show_cursor
-%endmacro
-
 ; --- Viewport Specifieke Macro's ---
 
-; Maak een nieuwe viewport
-; Gebruik: @vp_create x, y, w, h, buf_h
-; RAX bevat de pointer naar de nieuwe viewport structuur
 %macro @vp_create 5
     mov rdi, %1 ; X
     mov rsi, %2 ; Y
@@ -43,8 +38,22 @@
     call _viewport_create
 %endmacro
 
-; Schrijf naar viewport
-; Gebruik: @vp_write vp_ptr, x, y, string_ptr
+; Kleur instellen voor viewport
+; Gebruik: @vp_set_color vp_ptr, fg, bg
+%macro @vp_set_color 3
+    mov rdi, %1
+    mov rsi, %2 ; FG
+    mov rdx, %3 ; BG
+    call _viewport_set_color
+%endmacro
+
+; Border aanzetten
+%macro @vp_set_border 2
+    mov rdi, %1
+    mov rsi, %2 ; 1 = aan, 0 = uit
+    call _viewport_set_border
+%endmacro
+
 %macro @vp_write 4
     mov rdi, %1
     mov rsi, %2
@@ -53,14 +62,11 @@
     call _viewport_write
 %endmacro
 
-; Render viewport
 %macro @vp_render 1
     mov rdi, %1
     call _viewport_render
 %endmacro
 
-; Scroll viewport
-; Gebruik: @vp_scroll vp_ptr, n (+ of -)
 %macro @vp_scroll 2
     mov rdi, %1
     mov rsi, %2
