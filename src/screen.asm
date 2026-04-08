@@ -2,6 +2,7 @@
 %include "algemeen.mac"
 %include "syscalls.inc"
 %include "screen.mac"
+%include "screen_constants.inc"
 
 section .data
     esc_clear       db 27, '[2J', 27, '[H', 0
@@ -45,9 +46,9 @@ _viewport_create:
     mov [rax + VP_H], r15
     mov [rax + VP_BUF_H], rbp
     mov qword [rax + VP_VIEW_Y], 0
-    mov byte [rax + VP_FG], 7 ; White
-    mov byte [rax + VP_BG], 0 ; Black
-    mov byte [rax + VP_FLAGS], 0
+    mov byte [rax + VP_FG], COL_WHITE
+    mov byte [rax + VP_BG], COL_BLACK
+    mov byte [rax + VP_FLAGS], VPF_NONE
 
     mov rax, rbp
     mul r14

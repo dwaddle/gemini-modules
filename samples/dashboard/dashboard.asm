@@ -1,6 +1,7 @@
 ; dashboard.asm - Modern x86_64 Dashboard Example
 %include "algemeen.mac"
 %include "screen.mac"
+%include "screen_constants.inc"
 %include "string.mac"
 %include "memory.mac"
 
@@ -37,12 +38,12 @@ _start:
     
     ; Stel kleur en border in
     mov rdi, [vp_main]
-    mov rsi, 7          ; FG White
-    mov rdx, 4          ; BG Blue
+    mov rsi, COL_WHITE
+    mov rdx, COL_BLUE
     call _viewport_set_color
     
     mov rdi, [vp_main]
-    mov rsi, 1          ; Border ON
+    mov rsi, VPF_BORDER
     call _viewport_set_border
 
     ; 2. Bouw het scherm op in de buffer

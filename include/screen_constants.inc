@@ -1,21 +1,19 @@
-; screen_constants.inc - Viewport Structure Offsets and Flags
+; screen_constants.inc - ANSI Color and Viewport Flag Definitions
 %ifndef SCREEN_CONSTANTS_INC
     %define SCREEN_CONSTANTS_INC
 
-; Viewport Structuur Offsets
-%define VP_X        0
-%define VP_Y        8
-%define VP_W        16
-%define VP_H        24
-%define VP_BUF      32
-%define VP_BUF_H    40
-%define VP_VIEW_Y   48
-%define VP_FG       56
-%define VP_BG       57
-%define VP_FLAGS    58
-%define VP_SIZE     64
+; Standard ANSI Color Codes (0-7)
+%define COL_BLACK   0
+%define COL_RED     1
+%define COL_GREEN   2
+%define COL_YELLOW  3
+%define COL_BLUE    4
+%define COL_MAGENTA 5
+%define COL_CYAN    6
+%define COL_WHITE   7
 
 ; Viewport Flags
+%define VPF_NONE    0
 %define VPF_BORDER  1
 
 %endif
