@@ -8,6 +8,10 @@ section .data
     esc_color_pre db 27, '[3', 0    ; Voorgrondkleur prefix (ESC[3[0-7]m)
     hex_chars     db "0123456789ABCDEF"
     hex_prefix    db "0x", 0
+    
+    ; Data voor PrintColorString
+    cs_esc_pre    db 27, '[3', 0
+    cs_color_char db '0', 'm', 0
 
 section .text
 global PrintString
@@ -15,6 +19,7 @@ global PrintNewline
 global PrintInt
 global PrintHex
 global PrintColor
+global PrintColorString
 global ReadString
 global ReadChar
 
@@ -123,6 +128,143 @@ PrintColor:
     call _screen_reset_color
     
     @restore_context
+    ret
+
+; --- [ Print String met Kleurcodes ] ---
+; Parseert codes zoals |Y (Geel) en |y (Reset)
+; Input: RDI = Adres van string
+PrintColorString:
+    @save_context
+    mov r12, rdi        ; r12 = huidige pointer
+    mov r13, rdi        ; r13 = start van huidig segment
+.loop:
+    mov al, [r12]
+    test al, al
+    jz .done_last
+    
+    cmp al, '|'
+    jne .next
+    
+    ; 1. Print segment vóór de '|'
+    mov rdx, r12
+    sub rdx, r13        ; lengte segment
+    jz .skip_segment
+    
+    mov rdi, 1          ; stdout
+    mov rsi, r13
+    mov rax, SYS_WRITE
+    syscall
+    
+.skip_segment:
+    inc r12             ; Sla '|' over
+    mov al, [r12]
+    test al, al
+    jz .done            ; Onverwacht einde
+    
+    ; 2. Handel de code af
+    cmp al, '|'
+    je .literal_pipe
+    
+    ; Is het een reset code (kleine letter)?
+    cmp al, 'a'
+    jae .handle_reset
+    
+    ; Is het een kleur code (hoofdletter)?
+    call .get_color_index
+    cmp al, 0xFF
+    je .invalid_code
+    
+    ; Print ANSI kleur code
+    push rax
+    mov rdi, cs_esc_pre
+    call PrintString
+    pop rax
+    add al, '0'
+    mov [cs_color_char], al
+    mov rdi, cs_color_char
+    call PrintString
+    
+    jmp .after_code
+
+.handle_reset:
+    extern _screen_reset_color
+    call _screen_reset_color
+    jmp .after_code
+
+.literal_pipe:
+    ; Print een enkele '|'
+    push r12
+    sub rsp, 8
+    mov byte [rsp], '|'
+    mov rdi, 1
+    mov rsi, rsp
+    mov rdx, 1
+    mov rax, SYS_WRITE
+    syscall
+    add rsp, 8
+    pop r12
+    jmp .after_code
+
+.invalid_code:
+    jmp .after_code
+
+.after_code:
+    inc r12             ; Sla code karakter over
+    mov r13, r12        ; Nieuw segment begint na de code
+    jmp .loop
+
+.next:
+    inc r12
+    jmp .loop
+
+.done_last:
+    mov rdx, r12
+    sub rdx, r13
+    jz .done
+    mov rdi, 1
+    mov rsi, r13
+    mov rax, SYS_WRITE
+    syscall
+
+.done:
+    @restore_context
+    ret
+
+; Helper: Map karakter in AL naar 0-7, of 0xFF indien ongeldig
+.get_color_index:
+    cmp al, 'K' ; Black
+    je .c0
+    cmp al, 'R' ; Red
+    je .c1
+    cmp al, 'G' ; Green
+    je .c2
+    cmp al, 'Y' ; Yellow
+    je .c3
+    cmp al, 'B' ; Blue
+    je .c4
+    cmp al, 'M' ; Magenta
+    je .c5
+    cmp al, 'C' ; Cyan
+    je .c6
+    cmp al, 'W' ; White
+    je .c7
+    mov al, 0xFF
+    ret
+.c0: mov al, 0
+    ret
+.c1: mov al, 1
+    ret
+.c2: mov al, 2
+    ret
+.c3: mov al, 3
+    ret
+.c4: mov al, 4
+    ret
+.c5: mov al, 5
+    ret
+.c6: mov al, 6
+    ret
+.c7: mov al, 7
     ret
 
 ; --- [ Lees String ] ---

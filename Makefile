@@ -18,7 +18,7 @@ INC_DIR  = include
 ALL_MODULES = $(OBJ_DIR)/screen.o $(OBJ_DIR)/io.o $(OBJ_DIR)/string.o $(OBJ_DIR)/file.o $(OBJ_DIR)/cursor.o $(OBJ_DIR)/memory.o $(OBJ_DIR)/debug.o
 
 # Tests
-TESTS = test_io test_io_v2 test_string test_file test_memory test_screen_buffer test_viewports test_screen_wrap test_debug
+TESTS = test_io test_io_v2 test_string test_file test_memory test_screen_buffer test_viewports test_screen_wrap test_debug test_io_color
 
 # Targets
 .PHONY: all clean $(TESTS) run_tests dashboard
