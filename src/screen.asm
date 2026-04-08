@@ -20,54 +20,11 @@ section .data
     b_h  db '-', 0
     b_v  db '|', 0
 
-section .bss
-    default_viewport resq 1 ; Default viewport for legacy buffer API
-
 section .text
     global _screen_clear, _screen_reset_color, _screen_set_bgcolor, _screen_hide_cursor, _screen_show_cursor
     global _viewport_create, _viewport_write, _viewport_render, _viewport_scroll, _viewport_set_color, _viewport_set_border
-    global _screen_buffer_init, _screen_buffer_write, _screen_buffer_render, _screen_buffer_scroll_view
     
     extern PrintString, _int_to_str, _mem_alloc, _mem_set, _mem_copy, _cursor_goto_xy, _strlen
-
-; --- [ Legacy Screen Buffer API Wrappers ] ---
-
-; Input: RDI = Buffer Height (number of lines)
-_screen_buffer_init:
-    push rdi
-    mov rdi, 0 ; X
-    mov rsi, 0 ; Y
-    mov rdx, 80 ; Default Width
-    mov rcx, 24 ; Default Height
-    pop r8  ; BufH from input
-    call _viewport_create
-    mov [default_viewport], rax
-    ret
-
-; Input: RDI = X, RSI = Y, RDX = String Pointer
-_screen_buffer_write:
-    push rdx
-    push rsi
-    push rdi
-    mov rdi, [default_viewport]
-    pop rsi ; X -> LX
-    pop rdx ; Y -> LY
-    pop rcx ; Str
-    call _viewport_write
-    ret
-
-_screen_buffer_render:
-    mov rdi, [default_viewport]
-    call _viewport_render
-    ret
-
-; Input: RDI = Scroll Amount (+/-)
-_screen_buffer_scroll_view:
-    push rdi
-    mov rdi, [default_viewport]
-    pop rsi ; Scroll amount
-    call _viewport_scroll
-    ret
 
 ; --- [ Viewport Aanmaken ] ---
 _viewport_create:
