@@ -1,0 +1,19 @@
+; debug.mac - Debugging Macros
+%ifndef DEBUG_MAC
+    %define DEBUG_MAC
+
+; Dump alle registers naar het scherm
+; Bewaart de staat van de CPU volledig
+%macro @dump_regs 0
+    @save_context       ; Slaat R15 tot RBX op de stack op
+    push rax            ; Sla ook RAX op (save_context doet dat niet)
+    
+    mov rdi, rsp        ; Pointer naar de 16 quadwords op de stack
+    extern _debug_dump_regs
+    call _debug_dump_regs
+    
+    pop rax
+    @restore_context
+%endmacro
+
+%endif
