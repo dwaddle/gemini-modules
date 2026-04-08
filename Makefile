@@ -5,7 +5,7 @@ ASM = nasm
 LD  = ld
 
 # Flags
-ASM_FLAGS = -f elf64 -Iinclude/
+ASM_FLAGS = -f elf64 -Iinclude/ -w-dup
 LD_FLAGS  =
 
 # Directories
@@ -15,10 +15,10 @@ OBJ_DIR  = build
 INC_DIR  = include
 
 # Modules
-ALL_MODULES = $(OBJ_DIR)/io.o $(OBJ_DIR)/string.o $(OBJ_DIR)/file.o $(OBJ_DIR)/cursor.o $(OBJ_DIR)/screen.o $(OBJ_DIR)/memory.o
+ALL_MODULES = $(OBJ_DIR)/screen.o $(OBJ_DIR)/io.o $(OBJ_DIR)/string.o $(OBJ_DIR)/file.o $(OBJ_DIR)/cursor.o $(OBJ_DIR)/memory.o
 
 # Tests
-TESTS = test_io test_io_v2 test_string test_file test_memory test_screen_buffer test_viewports
+TESTS = test_io test_io_v2 test_string test_file test_memory test_screen_buffer test_viewports test_screen_wrap
 
 # Targets
 .PHONY: all clean $(TESTS) run_tests dashboard
@@ -59,6 +59,9 @@ test_screen_buffer: $(OBJ_DIR)/test_screen_buffer
 
 test_viewports: $(OBJ_DIR)/test_viewports
 	./$(OBJ_DIR)/test_viewports
+
+test_screen_wrap: $(OBJ_DIR)/test_screen_wrap
+	./$(OBJ_DIR)/test_screen_wrap
 
 # Sample target
 dashboard: $(OBJ_DIR)/dashboard

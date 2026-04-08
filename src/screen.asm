@@ -20,11 +20,54 @@ section .data
     b_h  db '-', 0
     b_v  db '|', 0
 
+section .bss
+    default_viewport resq 1 ; Default viewport for legacy buffer API
+
 section .text
     global _screen_clear, _screen_reset_color, _screen_set_bgcolor, _screen_hide_cursor, _screen_show_cursor
     global _viewport_create, _viewport_write, _viewport_render, _viewport_scroll, _viewport_set_color, _viewport_set_border
+    global _screen_buffer_init, _screen_buffer_write, _screen_buffer_render, _screen_buffer_scroll_view
     
     extern PrintString, _int_to_str, _mem_alloc, _mem_set, _mem_copy, _cursor_goto_xy, _strlen
+
+; --- [ Legacy Screen Buffer API Wrappers ] ---
+
+; Input: RDI = Buffer Height (number of lines)
+_screen_buffer_init:
+    push rdi
+    mov rdi, 0 ; X
+    mov rsi, 0 ; Y
+    mov rdx, 80 ; Default Width
+    mov rcx, 24 ; Default Height
+    pop r8  ; BufH from input
+    call _viewport_create
+    mov [default_viewport], rax
+    ret
+
+; Input: RDI = X, RSI = Y, RDX = String Pointer
+_screen_buffer_write:
+    push rdx
+    push rsi
+    push rdi
+    mov rdi, [default_viewport]
+    pop rsi ; X -> LX
+    pop rdx ; Y -> LY
+    pop rcx ; Str
+    call _viewport_write
+    ret
+
+_screen_buffer_render:
+    mov rdi, [default_viewport]
+    call _viewport_render
+    ret
+
+; Input: RDI = Scroll Amount (+/-)
+_screen_buffer_scroll_view:
+    push rdi
+    mov rdi, [default_viewport]
+    pop rsi ; Scroll amount
+    call _viewport_scroll
+    ret
 
 ; --- [ Viewport Aanmaken ] ---
 _viewport_create:
@@ -86,34 +129,192 @@ _viewport_set_border:
     ret
 
 ; --- [ Schrijf naar Viewport ] ---
+; Input: RDI=VP_Ptr, RSI=LocalX, RDX=LocalY, RCX=String_Ptr
 _viewport_write:
     @save_context
     mov r12, rdi ; VP
-    mov r13, rsi ; LX
-    mov r14, rdx ; LY
-    mov r15, rcx ; Str
+    mov r13, rsi ; Current LX
+    mov r14, rdx ; Current LY
+    mov r15, rcx ; Current string pointer
 
-    mov rdi, r15
-    call _strlen
-    mov rbx, rax
+.loop:
+    ; Check for end of string
+    cmp byte [r15], 0
+    je .done
 
-    mov rax, r13
-    add rax, rbx
-    cmp rax, [r12 + VP_W]
-    jle .do_copy
-    mov rax, [r12 + VP_W]
-    sub rax, r13
-    mov rbx, rax
-.do_copy:
-    mov rax, r14
-    mul qword [r12 + VP_W]
-    add rax, r13
-    add rax, [r12 + VP_BUF]
-    mov rdi, rax
+    ; Check if we exceeded buffer height
+    cmp r14, [r12 + VP_BUF_H]
+    jae .done
+
+    ; Handle spaces (leading or within)
+    cmp byte [r15], ' '
+    jne .handle_word
+    
+    ; If we have space, check if it fits at end of line
+    cmp r13, [r12 + VP_W]
+    jb .write_space
+    
+    ; Exact end of line, wrap before space
+    mov r13, 0
+    inc r14
+    cmp r14, [r12 + VP_BUF_H]
+    jae .done
+
+.write_space:
     mov rsi, r15
-    mov rdx, rbx
-    call _mem_copy
+    mov rdx, 1
+    call _write_segment
+    inc r15
+    jmp .check_bounds
+
+.handle_word:
+    ; Find next word and its length
+    mov rdi, r15
+    call _find_next_word
+    test rax, rax
+    jz .done
+    
+    mov rbx, rax        ; Pointer to word
+    mov r10, rdx        ; Length of word
+    
+    ; Check if word fits on current line
+    mov rax, r13
+    add rax, r10
+    cmp rax, [r12 + VP_W]
+    jle .write_it       ; Fits!
+    
+    ; Does not fit. Word wrap: Move to next line (if not already at LX=0)
+    test r13, r13
+    jz .truncate_word   ; Already at start of line, but still doesn't fit! Truncate.
+    
+    mov r13, 0          ; LX = 0
+    inc r14             ; LY++
+    cmp r14, [r12 + VP_BUF_H]
+    jae .done
+
+    ; Try again on the new line
+    mov rax, r13
+    add rax, r10
+    cmp rax, [r12 + VP_W]
+    jle .write_it
+
+.truncate_word:
+    ; Word is too long for the whole viewport width. Truncate it to fit the line.
+    mov r10, [r12 + VP_W]
+    sub r10, r13        ; Remaining space on line
+
+.write_it:
+    ; Write the word segment
+    mov rdi, r12
+    mov rsi, rbx
+    mov rdx, r10
+    call _write_segment
+    
+    ; Move string pointer past the written part
+    add r15, r10
+
+.check_bounds:
+    ; If we reached or exceeded end of line, wrap to next line
+    cmp r13, [r12 + VP_W]
+    jb .loop
+    
+    mov r13, 0
+    inc r14
+    jmp .loop
+
+.done:
     @restore_context
+    ret
+
+; --- Helper Functions for _viewport_write ---
+
+; Writes a segment of a string to the buffer at current X,Y
+; Input: RDI=VP, RSI=String segment pointer, RDX=Length
+; Modifies: R13 (increments LX)
+_write_segment:
+    push rax
+    push rbx
+    push rcx
+    push rdx
+    push rdi
+    push rsi
+    push r10
+    push r12
+
+    mov r12, rdi        ; VP
+    mov rbx, rsi        ; String segment pointer
+    mov r10, rdx        ; Length
+
+    ; Calculate buffer position: (LY * W) + LX
+    mov rax, r14        ; Current LY
+    mul qword [r12 + VP_W]
+    add rax, r13        ; Current LX
+    add rax, [r12 + VP_BUF]
+    mov rdi, rax        ; Destination in buffer
+
+    mov rsi, rbx        ; Source string
+    mov rdx, r10        ; Length
+    call _mem_copy      ; Copy segment to buffer
+
+    ; Increment current X position (r13)
+    add r13, r10
+    
+    pop r12
+    pop r10
+    pop rsi
+    pop rdi
+    pop rdx
+    pop rcx
+    pop rbx
+    pop rax
+    ret
+
+; Helper to find the next word and its length
+; Input: RDI = String pointer
+; Output: RAX = Pointer to start of word, RDX = Word length (or 0 if end of string/only spaces)
+_find_next_word:
+    push rsi
+    push rdi
+    push r8
+    push r10
+
+    mov rsi, rdi        ; String pointer
+    mov r10, 0          ; Word length
+
+    ; Skip leading spaces
+.skip_spaces_find:
+    cmp byte [rsi], ' '
+    jne .word_start_find
+    cmp byte [rsi], 0   ; End of string
+    je .end_of_string_find
+    inc rsi
+    jmp .skip_spaces_find
+
+.word_start_find:
+    mov rdi, rsi        ; Save start of word
+.count_word_len_find:
+    movzx r8, byte [rsi + r10]
+    cmp r8, 0           ; End of string?
+    je .word_found
+    cmp r8, ' '         ; Space found?
+    je .word_found
+    inc r10
+    jmp .count_word_len_find
+
+.word_found:
+    mov rax, rdi        ; Pointer to start of word
+    mov rdx, r10        ; Word length
+    jmp .done_find
+
+.end_of_string_find:
+    xor rax, rax        ; Indicate no word found
+    xor rdx, rdx
+
+.done_find:
+    pop r10
+    pop r8
+    pop rdi
+    pop rsi
     ret
 
 ; --- [ Render Viewport ] ---
