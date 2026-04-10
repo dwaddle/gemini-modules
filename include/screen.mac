@@ -17,7 +17,8 @@
 %define VP_FG       56
 %define VP_BG       57
 %define VP_FLAGS    58
-%define VP_SIZE     64
+%define VP_TITLE    64
+%define VP_SIZE     72
 
 ; Viewport Flags
 %define VPF_BORDER  1

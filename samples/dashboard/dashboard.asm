@@ -6,7 +6,7 @@
 %include "memory.mac"
 
 section .data
-    title       db "=== SYSTEM MONITOR v2.0 ===", 0
+    vp_title    db "SYSTEM MONITOR v2.0", 0
     status_lbl  db "Status: ", 0
     status_val  db "ONLINE", 0
     mem_lbl     db "Memory: ", 0
@@ -21,7 +21,7 @@ section .bss
 section .text
     global _start
     extern PrintString, PrintNewline, PrintInt, PrintColor, ReadChar, _int_to_str
-    extern _viewport_create, _viewport_write, _viewport_render, _viewport_scroll, _viewport_set_color, _viewport_set_border
+    extern _viewport_create, _viewport_write, _viewport_render, _viewport_scroll, _viewport_set_color, _viewport_set_border, _viewport_set_title
     extern _cursor_goto_xy, _screen_clear
 
 _start:
@@ -36,7 +36,7 @@ _start:
     call _viewport_create
     mov [vp_main], rax
     
-    ; Stel kleur en border in
+    ; Stel kleur, border en TITEL in
     mov rdi, [vp_main]
     mov rsi, COL_WHITE
     mov rdx, COL_BLUE
@@ -46,13 +46,11 @@ _start:
     mov rsi, VPF_BORDER
     call _viewport_set_border
 
-    ; 2. Bouw het scherm op in de buffer
     mov rdi, [vp_main]
-    mov rsi, 25         ; LX
-    mov rdx, 1          ; LY
-    mov rcx, title
-    call _viewport_write
+    mov rsi, vp_title
+    call _viewport_set_title
 
+    ; 2. Bouw de inhoud op (zonder de titel, die doet de border nu)
     mov rdi, [vp_main]
     mov rsi, 5
     mov rdx, 3
