@@ -1,5 +1,5 @@
 ; ---------------------------------------------------------
-; IO MODULE - Scherm en Tekst
+; IO MODULE - Scherm, Tekst en Seriële Poort
 ; ---------------------------------------------------------
 %include "syscalls.inc"
 %include "algemeen.mac"
@@ -15,8 +15,24 @@ section .data
     cs_256_pre    db 27, '[38;5;', 0
     cs_suffix     db 'm', 0
 
+    ; Serial Port Constants (Linux termios)
+    ; TCGETS = 0x5401, TCSETS = 0x5402
+    TCGETS      equ 0x5401
+    TCSETS      equ 0x5402
+    
+    ; Basic Baud Rates (Mapping for B9600, B115200 etc. is complex, 
+    ; usually B9600 is 0xD, B115200 is 0x1002)
+    B9600       equ 0x0000000D
+    B115200     equ 0x00001002
+    
+    ; CSIZE constants
+    CS8         equ 0x00000030
+    CLOCAL      equ 0x00000800
+    CREAD       equ 0x00000080
+
 section .bss
     cs_num_buf    resb 16
+    termios_buf   resb 64           ; Ruimte voor struct termios
 
 section .text
 global PrintString
@@ -27,6 +43,12 @@ global PrintColor
 global PrintColorString
 global ReadString
 global ReadChar
+
+; Serial Functions
+global SerialOpen
+global SerialConfig
+global SerialWrite
+global SerialRead
 
 extern _int_to_str, _strlen
 
@@ -41,7 +63,7 @@ PrintString:
     inc rdx
     jmp .len_loop
 .print:
-    mov rdi, 1
+    mov rdi, 1          ; stdout
     mov rax, SYS_WRITE
     syscall
     @restore_context
@@ -122,26 +144,16 @@ PrintColor:
     ret
 
 ; --- [ Print String met Uitgebreide Kleurcodes ] ---
-; Syntax:
-; |R, |G, ...  : Standaard 8 kleuren (0-7)
-; |r, |g, ...  : Heldere 8 kleuren (8-15)
-; |[n]         : 256 kleuren palette (0-255)
-; |!           : Reset naar standaard
-; |n           : Newline
-; ||           : Letterlijke pipe
 PrintColorString:
     @save_context
-    mov r12, rdi        ; r12 = huidige pointer
-    mov r13, rdi        ; r13 = start van huidig segment
+    mov r12, rdi
+    mov r13, rdi
 .loop:
     mov al, [r12]
     test al, al
     jz .done_last
-    
     cmp al, '|'
     jne .next
-    
-    ; 1. Print segment vóór de '|'
     mov rdx, r12
     sub rdx, r13
     jz .skip_segment
@@ -149,13 +161,11 @@ PrintColorString:
     mov rsi, r13
     mov rax, SYS_WRITE
     syscall
-    
 .skip_segment:
     inc r12
     mov al, [r12]
     test al, al
     jz .done
-    
     cmp al, '|'
     je .literal_pipe
     cmp al, '!'
@@ -164,25 +174,19 @@ PrintColorString:
     je .handle_newline
     cmp al, '['
     je .handle_256
-    
-    ; Check voor basis kleuren (A-Z of a-z)
     cmp al, 'A'
     jb .invalid_code
     cmp al, 'z'
     ja .invalid_code
-    
-    ; Bepaal of het Bright is (kleine letter)
-    mov rbx, 0          ; Offset
+    mov rbx, 0
     cmp al, 'a'
     jb .not_bright
-    sub al, 32          ; Convert naar hoofdletter
-    mov rbx, 60         ; ANSI offset voor bright
+    sub al, 32
+    mov rbx, 60
 .not_bright:
     call .get_color_index
     cmp al, 0xFF
     je .invalid_code
-    
-    ; Print ANSI code
     add rax, rbx
     push rax
     mov rdi, cs_esc_pre
@@ -197,18 +201,15 @@ PrintColorString:
     call PrintString
     add rsp, 16
     jmp .after_code
-
 .handle_reset:
     extern _screen_reset_color
     call _screen_reset_color
     jmp .after_code
-
 .handle_newline:
     call PrintNewline
     jmp .after_code
-
 .handle_256:
-    inc r12             ; Sla '[' over
+    inc r12
     xor rax, rax
     xor rcx, rcx
 .parse_256_loop:
@@ -236,7 +237,6 @@ PrintColorString:
     mov rdi, cs_suffix
     call PrintString
     jmp .after_code
-
 .literal_pipe:
     push r12
     sub rsp, 8
@@ -249,19 +249,15 @@ PrintColorString:
     add rsp, 8
     pop r12
     jmp .after_code
-
 .invalid_code:
     jmp .after_code
-
 .after_code:
     inc r12
     mov r13, r12
     jmp .loop
-
 .next:
     inc r12
     jmp .loop
-
 .done_last:
     mov rdx, r12
     sub rdx, r13
@@ -270,7 +266,6 @@ PrintColorString:
     mov rsi, r13
     mov rax, SYS_WRITE
     syscall
-
 .done:
     @restore_context
     ret
@@ -343,5 +338,78 @@ ReadChar:
     syscall
     movzx rax, byte [rsp]
     add rsp, 8
+    @restore_context
+    ret
+
+; =========================================================
+; SERIAL PORT FUNCTIONS
+; =========================================================
+
+; --- [ Open Seriële Poort ] ---
+; Input: RDI = Pad naar device (bijv. "/dev/ttyS0")
+; Output: RAX = File Descriptor of negatief bij fout
+SerialOpen:
+    @save_context
+    mov rsi, 2          ; O_RDWR
+    mov rax, SYS_OPEN
+    syscall
+    @restore_context
+    ret
+
+; --- [ Configureer Seriële Poort ] ---
+; Input: RDI = FD, RSI = Baudrate (bijv. B9600)
+; Output: RAX = 0 bij succes
+SerialConfig:
+    @save_context
+    mov r12, rdi        ; FD
+    mov r13, rsi        ; Baudrate constant
+    
+    ; 1. Haal huidige instellingen op
+    mov rdi, r12
+    mov rsi, TCGETS
+    mov rdx, termios_buf
+    mov rax, SYS_IOCTL
+    syscall
+    test rax, rax
+    jnz .done
+
+    ; 2. Pas instellingen aan in de buffer
+    ; termios struct:
+    ; c_iflag (0), c_oflag (4), c_cflag (8), c_lflag (12)
+    ; we zetten baudrate in c_cflag (offset 8)
+    mov eax, [termios_buf + 8]
+    and eax, 0xFFFFF000 ; Clear baud rate bits
+    or eax, r13d        ; Set new baud rate
+    or eax, CS8         ; 8 data bits
+    or eax, CLOCAL      ; Ignore modem control lines
+    or eax, CREAD       ; Enable receiver
+    mov [termios_buf + 8], eax
+    
+    ; 3. Schrijf instellingen terug
+    mov rdi, r12
+    mov rsi, TCSETS
+    mov rdx, termios_buf
+    mov rax, SYS_IOCTL
+    syscall
+
+.done:
+    @restore_context
+    ret
+
+; --- [ Schrijf naar Seriële Poort ] ---
+; Input: RDI = FD, RSI = Buffer, RDX = Aantal bytes
+SerialWrite:
+    @save_context
+    mov rax, SYS_WRITE
+    syscall
+    @restore_context
+    ret
+
+; --- [ Lees van Seriële Poort ] ---
+; Input: RDI = FD, RSI = Buffer, RDX = Max bytes
+SerialRead:
+    @save_context
+    mov rax, SYS_READ
+    syscall
     @restore_context
     ret

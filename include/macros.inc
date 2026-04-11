@@ -24,3 +24,33 @@
 %macro clear 1
     xor %1, %1
 %endmacro
+
+; --- Serial Port Macros ---
+%macro @serial_open 1
+    mov rdi, %1
+    extern SerialOpen
+    call SerialOpen
+%endmacro
+
+%macro @serial_config 2
+    mov rdi, %1
+    mov rsi, %2
+    extern SerialConfig
+    call SerialConfig
+%endmacro
+
+%macro @serial_write 3
+    mov rdi, %1
+    mov rsi, %2
+    mov rdx, %3
+    extern SerialWrite
+    call SerialWrite
+%endmacro
+
+%macro @serial_read 3
+    mov rdi, %1
+    mov rsi, %2
+    mov rdx, %3
+    extern SerialRead
+    call SerialRead
+%endmacro

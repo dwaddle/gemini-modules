@@ -16,6 +16,7 @@
 %define SYS_MPROTECT  10
 %define SYS_MUNMAP    11
 %define SYS_BRK       12
+%define SYS_IOCTL     16
 %define SYS_ACCESS    21
 %define SYS_RENAME    82
 %define SYS_UNLINK    87
