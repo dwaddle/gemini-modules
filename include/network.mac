@@ -1,0 +1,53 @@
+; network.mac - Networking Macros
+%ifndef NETWORK_MAC
+    %define NETWORK_MAC
+
+%include "network_constants.inc"
+
+; Create a new TCP socket
+%macro @net_socket 0
+    mov rdi, AF_INET
+    mov rsi, SOCK_STREAM
+    mov rdx, 0
+    extern _net_socket
+    call _net_socket
+%endmacro
+
+; Connect to a remote host
+; sockaddr_ptr should point to a populated sockaddr_in structure
+%macro @net_connect 2
+    mov rdi, %1         ; fd
+    mov rsi, %2         ; sockaddr_ptr
+    mov rdx, STR_SOCKADDR_IN_SIZE
+    extern _net_connect
+    call _net_connect
+%endmacro
+
+; Send a string or buffer
+%macro @net_send 3
+    mov rdi, %1         ; fd
+    mov rsi, %2         ; buffer
+    mov rdx, %3         ; length
+    mov rcx, 0          ; flags
+    extern _net_send
+    call _net_send
+%endmacro
+
+; Receive data into a buffer
+%macro @net_recv 3
+    mov rdi, %1         ; fd
+    mov rsi, %2         ; buffer
+    mov rdx, %3         ; length
+    mov rcx, 0          ; flags
+    extern _net_recv
+    call _net_recv
+%endmacro
+
+; Close a socket
+%macro @net_close 1
+    mov rdi, %1
+    extern _net_close
+    call _net_close
+%endmacro
+
+%endif
