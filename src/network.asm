@@ -4,7 +4,7 @@
 %include "network_constants.inc"
 
 section .text
-    global _net_socket, _net_connect, _net_send, _net_recv, _net_close, _htons
+    global _net_socket, _net_connect, _net_send, _net_recv, _net_close, _htons, _net_aton, _net_bind, _net_listen, _net_accept
 
 ; --- [ Create Socket ] ---
 ; Input: RDI = Domain (AF_INET), RSI = Type (SOCK_STREAM), RDX = Protocol (0)
@@ -12,6 +12,33 @@ section .text
 _net_socket:
     @save_context
     mov rax, SYS_SOCKET
+    syscall
+    @restore_context
+    ret
+
+; --- [ Bind Socket ] ---
+; Input: RDI = Socket FD, RSI = Pointer to sockaddr_in, RDX = Addr length
+_net_bind:
+    @save_context
+    mov rax, SYS_BIND
+    syscall
+    @restore_context
+    ret
+
+; --- [ Listen for Connections ] ---
+; Input: RDI = Socket FD, RSI = Backlog
+_net_listen:
+    @save_context
+    mov rax, SYS_LISTEN
+    syscall
+    @restore_context
+    ret
+
+; --- [ Accept Connection ] ---
+; Input: RDI = Socket FD, RSI = Pointer to sockaddr_in (output), RDX = Pointer to addr len
+_net_accept:
+    @save_context
+    mov rax, SYS_ACCEPT
     syscall
     @restore_context
     ret
@@ -67,4 +94,45 @@ _net_close:
 _htons:
     mov ax, di
     xchg al, ah
+    ret
+
+; --- [ Helper: ASCII IP to Network Long (aton) ] ---
+; Input: RDI = IP String (e.g., "127.0.0.1")
+; Output: EAX = IP in network order (dword)
+_net_aton:
+    @save_context
+    xor r8, r8          ; Result accumulator
+    xor r9, r9          ; Part accumulator
+    mov rcx, 4          ; 4 parts
+.loop_parts:
+    xor r9, r9
+.loop_digits:
+    movzx rax, byte [rdi]
+    test rax, rax
+    jz .done_parts
+    cmp al, '.'
+    je .next_part
+    cmp al, '0'
+    jb .next_part
+    cmp al, '9'
+    ja .next_part
+    
+    sub al, '0'
+    imul r9, 10
+    add r9, rax
+    inc rdi
+    jmp .loop_digits
+.next_part:
+    shl r8, 8
+    or r8, r9
+    inc rdi
+    loop .loop_parts
+    jmp .finish
+.done_parts:
+    shl r8, 8
+    or r8, r9
+.finish:
+    mov rax, r8
+    bswap eax
+    @restore_context
     ret

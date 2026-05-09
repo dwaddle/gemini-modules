@@ -106,22 +106,129 @@ Reads raw data from an open file.
 ## Current Roadmap (TODO)
 
 ### 🛠 Core & Stability
-- [ ] **`_mem_free` Implementation**: Real heap tracking for dynamic memory.
-- [ ] **Viewport Titles**: Display labels in the top border of windows.
+- [x] **`_mem_free` Implementation**: Real heap tracking for dynamic memory.
+- [x] **Viewport Titles**: Display labels in the top border of windows.
 - [ ] **SIMD Optimization**: Use SSE/AVX for faster memory and string ops.
-- [ ] **Register Dumper**: Macro to print all registers for debugging.
+- [x] **Register Dumper**: Macro to print all registers for debugging.
 
 ### 🖥 UI & Interaction
-- [ ] **Raw Mode Toggle**: Catch arrow keys and special keys instantly.
+- [x] **Raw Mode Toggle**: Catch arrow keys and special keys instantly.
 - [ ] **Word Wrap**: Automatically wrap text within viewports.
 - [ ] **Input Box Widget**: Reusable UI component for text entry.
 - [ ] **Mouse Support**: ANSI sequence handling for mouse events.
 
 ### 🌐 Networking & System
 - [ ] **CLI Argument Parser**: Helper for argc/argv processing.
-- [ ] **Process Module**: Executing external commands and reading ENV vars.
-- [ ] **Socket Module**: TCP client basics (connect, send, recv).
+- [x] **Process Module**: Executing external commands and reading ENV vars.
+- [x] **Socket Module**: TCP client & server basics (connect, bind, listen, accept, send, recv).
+
+### 🔌 Hardware & Serial
+- [ ] **Serial Port I/O**: Read from RS-232/Serial devices with file-based mocking for testing.
 
 ### 📂 Data Structures
 - [ ] **Linked Lists**: Dynamic list management functions.
+- [ ] **Hash Maps**: Fast key-value lookups for system strings.
+- [ ] **Circular Buffers**: High-performance I/O buffering.
 - [ ] **Hex Dump**: Formatted memory dump for debugging.
+
+### 🧵 Concurrency & Multitasking
+- [ ] **Thread Wrapper**: Macros for `clone` or `pthread` style execution.
+- [ ] **Mutex/Spinlock**: Basic synchronization primitives for shared memory.
+- [ ] **Signal Handler**: Catch `SIGINT` (Ctrl+C) and `SIGWINCH` (Resize) gracefully.
+
+### 📊 Data Parsing & Serialization
+- [ ] **JSON Lite**: Basic parser for configuration files.
+- [ ] **CSV Engine**: Fast processing of structured system data.
+- [ ] **XML Parser**: Support for complex system descriptors.
+
+### 🧮 Math & Logic
+- [ ] **Fixed-point arithmetic**: For UI scaling without FPU overhead.
+- [x] **Random Number Generator**: Macro for `/dev/urandom` and fast LCG.
+- [ ] **Checksums**: CRC32 or Adler-32 implementation for data integrity.
+
+### 🔐 Security & Encryption
+- [ ] **SHA-256**: Native assembly hash implementation.
+- [ ] **Base64**: Encoder and decoder for binary data.
+- [ ] **Constant-time Compare**: Prevent timing attacks in string comparisons.
+
+### 🕒 System & Diagnostics
+- [ ] **Time Formatter**: Convert Unix timestamps to ISO strings.
+- [ ] **Stack Tracer**: Basic backtrace on application panic.
+- [ ] **Memory Watcher**: Track leaks and heap usage in debug mode.
+- [ ] **Inotify Wrapper**: Monitor filesystem changes.
+- [ ] **Epoll/Poll Support**: High-performance I/O for the socket module.
+- [ ] **Logging Framework**: Level-based logging (INFO, DEBUG, ERROR) with file output.
+
+### 🗜 Compression & Archiving
+- [ ] **RLE Compression**: Simple Run-Length Encoding for buffer snapshots.
+- [ ] **Zlib/Deflate**: Basic implementation for compressed network/file streams.
+
+### 🌍 High-level Protocols
+- [ ] **HTTP Client**: Basic GET/POST implementation for REST APIs.
+- [ ] **DNS Resolver**: Pure ASM implementation to resolve hostnames.
+
+### 📜 Configuration
+- [ ] **INI Parser**: Read and write simple configuration files.
+- [ ] **ENV Manager**: Easy access and manipulation of environment variables.
+
+### 🔈 Media & Sound
+- [ ] **ALSA Wrapper**: Basic PCM sound output for alerts and feedback.
+
+### 🎨 Advanced UI & Visuals
+- [ ] **Advanced TUI Widgets**: Modals, dropdowns, checkboxes, and radio buttons.
+- [ ] **Live Memory/Stack Inspector**: Real-time hex-dump viewport for debugging.
+- [ ] **High-Res Unicode Graphics**: Use Braille patterns and Block elements for 1/8th character precision.
+- [ ] **Resource Bars**: Reusable horizontal/vertical bars for CPU, RAM, or progress metrics.
+- [ ] **Off-screen Rendering**: Buffer viewport/screen content for atomic "flips" to avoid flickering.
+- [ ] **Progress Bars**: Visual feedback widgets for long-running tasks.
+- [ ] **Real-time Graphs**: High-resolution line and area charts using Braille patterns for smooth data visualization.
+- [ ] **Layout Engine**: Automatic viewport positioning (Flexbox-style).
+- [ ] **Color Themes**: Loadable CSS-like definitions for terminal colors.
+
+---
+
+## 📦 Complete Applicaties (Showcases)
+
+### 🔗 Gemini Socat (`gsocat`)
+Een krachtige "relay" tool die data bidirectioneel verplaatst tussen twee willekeurige endpoints.
+- [ ] **Bi-directionele I/O Loop**: Gelijktijdig lezen en schrijven tussen twee file descriptors zonder blokkering.
+- [ ] **Unified Address Parser**: Een parser die strings als `TCP-LISTEN:8080`, `FILE:test.txt`, of `SERIAL:/dev/ttyS0` omzet naar de juiste FD's.
+- [ ] **I/O Multiplexing**: Implementatie van `select` of `epoll` om efficiënt op data van beide kanten te wachten.
+- [ ] **Buffer Management**: Slimme ring-buffers om snelheidsverschillen tussen endpoints op te vangen.
+
+### 📊 Gemini Top (`gtop`)
+Een realtime process monitor die de prestaties van het systeem visualiseert.
+- [ ] **Proc-FS Parser**: Uitlezen van CPU (totaal en per core), RAM en procesgegevens uit `/proc`.
+- [ ] **Per-Core View**: Individuele belasting-balken voor elke core (gebruikmakend van de Resource Bar module).
+- [ ] **Live History Graphs**: Hoge-resolutie CPU/RAM geschiedenis (gebruikmakend van de High-Res Graphics module).
+- [ ] **System Dashboard**: Een responsieve layout die alle parsed data samenbrengt.
+
+### 📝 Gemini Text Editor (`gedit`)
+Een minimalistische terminal-gebaseerde tekstverwerker.
+- [ ] **Buffer Management**: Efficiënt beheer van grote tekstbestanden in het geheugen.
+- [ ] **Key-bind Engine**: Koppeling van toetsaanslagen aan acties (kopiëren, plakken, opslaan).
+
+### 🕸️ Gemini Web Server (`ghttpd`)
+Een krachtige statische webserver met een extreem lage voetafdruk.
+- [ ] **HTTP Router**: Koppelen van URL's aan lokale bestanden.
+- [ ] **Header Management**: Verzenden van correcte MIME-types en caching-headers.
+
+### 💬 Gemini Chat Client (`gchat`)
+Een terminal-gebaseerde chat-applicatie over TCP/IP.
+- [ ] **Message Protocol**: Een lichtgewicht protocol voor berichtuitwisseling.
+- [ ] **UI Sync**: Realtime bijwerken van het chat-venster terwijl de gebruiker typt.
+
+### 💾 Gemini Database (`gdb`)
+Een snelle key-value store voor data-persistentie.
+- [ ] **B-Tree Engine**: On-disk indexing voor snelle lookups.
+- [ ] **Transaction Log**: Garanderen van data-integriteit bij crashes.
+
+### 🖼️ Gemini Image Viewer (`gview`)
+Bekijk afbeeldingen direct in je terminal.
+- [ ] **Sixel/Kitty Support**: Ondersteuning voor high-res rendering in de terminal.
+- [ ] **BMP/Raw Parser**: Native image decoding in Assembly.
+
+### 🕹️ Gemini Tetris (`gtris`)
+Een klassieke Tetris-kloon gebouwd in Assembly.
+- [ ] **Game Logic**: Pure ASM implementatie van de Tetris-mechanieken.
+- [ ] **Sound Effects**: Gebruik van de ALSA-module voor retro audio feedback.

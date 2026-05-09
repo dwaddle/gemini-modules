@@ -1,0 +1,44 @@
+; list.mac - Linked List macros
+%ifndef LIST_MAC
+    %define LIST_MAC
+
+; Voeg element toe aan begin van de lijst
+%macro @list_push_front 2
+    mov rdi, %1
+    mov rsi, %2
+    extern _list_push_front
+    call _list_push_front
+%endmacro
+
+; Haal element van begin van de lijst
+%macro @list_pop_front 1
+    mov rdi, %1
+    extern _list_pop_front
+    call _list_pop_front
+%endmacro
+
+; Voeg element toe aan einde van de lijst
+%macro @list_push_back 2
+    mov rdi, %1
+    mov rsi, %2
+    extern _list_push_back
+    call _list_push_back
+%endmacro
+
+; Maak de lijst volledig leeg
+%macro @list_free 1
+    mov rdi, %1
+    xor rsi, rsi
+    extern _list_free
+    call _list_free
+%endmacro
+
+; Maak de lijst leeg met een custom free functie
+%macro @list_free_ex 2
+    mov rdi, %1
+    mov rsi, %2
+    extern _list_free
+    call _list_free
+%endmacro
+
+%endif

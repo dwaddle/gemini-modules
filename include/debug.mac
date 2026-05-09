@@ -16,4 +16,12 @@
     @restore_context
 %endmacro
 
+; Dump een geheugenregio als hex/ascii
+%macro @hex_dump 2
+    mov rdi, %1
+    mov rsi, %2
+    extern _debug_hex_dump
+    call _debug_hex_dump
+%endmacro
+
 %endif

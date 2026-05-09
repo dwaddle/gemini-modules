@@ -20,6 +20,7 @@
 %define SYS_ACCESS    21
 %define SYS_RENAME    82
 %define SYS_UNLINK    87
+%define SYS_GETDENTS64 217
 %define SYS_EXIT      60
 
 ; Networking Operations

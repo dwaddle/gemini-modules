@@ -4,7 +4,9 @@
 
 %include "network_constants.inc"
 
-; Create a new TCP socket
+; --- [ Create Socket ] ---
+; Gebruik: @net_socket
+; Output: RAX = Socket FD
 %macro @net_socket 0
     mov rdi, AF_INET
     mov rsi, SOCK_STREAM
@@ -13,8 +15,38 @@
     call _net_socket
 %endmacro
 
-; Connect to a remote host
-; sockaddr_ptr should point to a populated sockaddr_in structure
+; --- [ Bind Socket ] ---
+; Gebruik: @net_bind fd, sockaddr_ptr
+%macro @net_bind 2
+    mov rdi, %1
+    mov rsi, %2
+    mov rdx, STR_SOCKADDR_IN_SIZE
+    extern _net_bind
+    call _net_bind
+%endmacro
+
+; --- [ Listen for Connections ] ---
+; Gebruik: @net_listen fd, backlog
+%macro @net_listen 2
+    mov rdi, %1
+    mov rsi, %2
+    extern _net_listen
+    call _net_listen
+%endmacro
+
+; --- [ Accept Connection ] ---
+; Gebruik: @net_accept fd, sockaddr_out_ptr, addrlen_ptr
+; Output: RAX = Client FD
+%macro @net_accept 3
+    mov rdi, %1
+    mov rsi, %2
+    mov rdx, %3
+    extern _net_accept
+    call _net_accept
+%endmacro
+
+; --- [ Connect to Host ] ---
+; Gebruik: @net_connect fd, sockaddr_ptr
 %macro @net_connect 2
     mov rdi, %1         ; fd
     mov rsi, %2         ; sockaddr_ptr
@@ -23,7 +55,8 @@
     call _net_connect
 %endmacro
 
-; Send a string or buffer
+; --- [ Send Data ] ---
+; Gebruik: @net_send fd, buffer, length
 %macro @net_send 3
     mov rdi, %1         ; fd
     mov rsi, %2         ; buffer
@@ -33,7 +66,8 @@
     call _net_send
 %endmacro
 
-; Receive data into a buffer
+; --- [ Receive Data ] ---
+; Gebruik: @net_recv fd, buffer, length
 %macro @net_recv 3
     mov rdi, %1         ; fd
     mov rsi, %2         ; buffer
@@ -43,11 +77,29 @@
     call _net_recv
 %endmacro
 
-; Close a socket
+; --- [ Close Socket ] ---
 %macro @net_close 1
     mov rdi, %1
     extern _net_close
     call _net_close
+%endmacro
+
+; --- [ IP naar Network Long ] ---
+; Gebruik: @net_aton ip_string_ptr
+; Output: EAX = IP in network order
+%macro @net_aton 1
+    mov rdi, %1
+    extern _net_aton
+    call _net_aton
+%endmacro
+
+; --- [ Host Order naar Network Order (Short) ] ---
+; Gebruik: @htons port_value
+; Output: AX = Network order port
+%macro @htons 1
+    mov rdi, %1
+    extern _htons
+    call _htons
 %endmacro
 
 %endif

@@ -1,0 +1,20 @@
+; system.mac - Systeem macros
+%ifndef SYSTEM_MAC
+    %define SYSTEM_MAC
+
+; Haal argc op (RDI moet naar de initiële stack wijzen)
+%macro @get_argc 1
+    mov rdi, %1
+    extern _sys_get_argc
+    call _sys_get_argc
+%endmacro
+
+; Haal argv[index] op
+%macro @get_argv 2
+    mov rdi, %1
+    mov rsi, %2
+    extern _sys_get_argv
+    call _sys_get_argv
+%endmacro
+
+%endif

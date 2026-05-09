@@ -45,12 +45,71 @@ global ReadString
 global ReadChar
 
 ; Serial Functions
-global SerialOpen
-global SerialConfig
-global SerialWrite
-global SerialRead
+global TerminalRawMode
+global TerminalResetMode
+global IsKeyAvailable
 
-extern _int_to_str, _strlen
+extern _int_to_str, _strlen, _screen_reset_color
+
+; --- [ Terminal Raw Mode ] ---
+; Zet stdin in raw mode (geen echo, geen line buffering)
+TerminalRawMode:
+    @save_context
+    ; 1. Haal huidige termios op
+    mov rdi, 0          ; stdin
+    mov rsi, TCGETS
+    mov rdx, termios_buf
+    mov rax, SYS_IOCTL
+    syscall
+    @restore_context
+    ret
+
+; --- [ Terminal Reset Mode ] ---
+TerminalResetMode:
+    @save_context
+    mov rdi, 0
+    mov rsi, TCGETS
+    mov rdx, termios_buf
+    mov rax, SYS_IOCTL
+    syscall
+    
+    mov eax, [termios_buf + 12]
+    or eax, 0x0000000A ; Restore ICANON | ECHO
+    mov [termios_buf + 12], eax
+    
+    mov rdi, 0
+    mov rsi, TCSETS
+    mov rdx, termios_buf
+    mov rax, SYS_IOCTL
+    syscall
+    @restore_context
+    ret
+
+; --- [ Is er een toets ingedrukt? ] ---
+; Output: RAX = 1 indien data beschikbaar op stdin, anders 0
+IsKeyAvailable:
+    @save_context
+    sub rsp, 16
+    ; struct pollfd { int fd; short events; short revents; }
+    mov dword [rsp], 0      ; fd = 0
+    mov word [rsp + 4], 1   ; events = POLLIN
+    
+    mov rdi, rsp            ; fds
+    mov rsi, 1              ; nfds
+    mov rdx, 0              ; timeout (0 = non-blocking)
+    mov rax, SYS_POLL
+    syscall
+    
+    cmp rax, 0
+    jg .data_avail
+    xor rax, rax
+    jmp .done
+.data_avail:
+    mov rax, 1
+.done:
+    add rsp, 16
+    @restore_context
+    ret
 
 ; --- [ Print String ] ---
 PrintString:

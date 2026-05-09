@@ -103,60 +103,27 @@ _viewport_write:
     mov r15, rcx ; Current string pointer
 
 .loop:
-    cmp byte [r15], 0
-    je .done
+    movzx rax, byte [r15]
+    test al, al
+    jz .done
     cmp r14, [r12 + VP_BUF_H]
     jae .done
-    cmp byte [r15], ' '
-    jne .handle_word
-    cmp r13, [r12 + VP_W]
-    jb .write_space
-    mov r13, 0
-    inc r14
-    cmp r14, [r12 + VP_BUF_H]
-    jae .done
-.write_space:
+    
+    ; Geen word wrapping voor nu, gewoon letter per letter voor stabiliteit
+    mov rdi, r12
     mov rsi, r15
     mov rdx, 1
     call _write_segment
+    
     inc r15
-    jmp .check_bounds
-.handle_word:
-    mov rdi, r15
-    call _find_next_word
-    test rax, rax
-    jz .done
-    mov rbx, rax
-    mov r10, rdx
-    mov rax, r13
-    add rax, r10
-    cmp rax, [r12 + VP_W]
-    jle .write_it
-    test r13, r13
-    jz .truncate_word
-    mov r13, 0
-    inc r14
-    cmp r14, [r12 + VP_BUF_H]
-    jae .done
-    mov rax, r13
-    add rax, r10
-    cmp rax, [r12 + VP_W]
-    jle .write_it
-.truncate_word:
-    mov r10, [r12 + VP_W]
-    sub r10, r13
-.write_it:
-    mov rdi, r12
-    mov rsi, rbx
-    mov rdx, r10
-    call _write_segment
-    add r15, r10
-.check_bounds:
+    inc r13
     cmp r13, [r12 + VP_W]
     jb .loop
+    
     mov r13, 0
     inc r14
     jmp .loop
+
 .done:
     @restore_context
     ret
@@ -170,18 +137,22 @@ _write_segment:
     push rsi
     push r10
     push r12
+    
     mov r12, rdi
     mov rbx, rsi
     mov r10, rdx
+    
+    ; Buffer offset = (LY * W) + LX
     mov rax, r14
     mul qword [r12 + VP_W]
     add rax, r13
     add rax, [r12 + VP_BUF]
+    
     mov rdi, rax
     mov rsi, rbx
     mov rdx, r10
     call _mem_copy
-    add r13, r10
+    
     pop r12
     pop r10
     pop rsi
@@ -237,9 +208,13 @@ _viewport_render:
     call _screen_hide_cursor
     test byte [r12 + VP_FLAGS], VPF_BORDER
     jz .skip_border
+    push r13
     call _viewport_draw_border_internal
+    pop r13
 .skip_border:
+    push r12
     call _viewport_apply_color_internal
+    pop r12
     mov r13, 0
 .line_loop:
     mov rax, [r12 + VP_VIEW_Y]
@@ -300,6 +275,7 @@ _viewport_apply_color_internal:
     ret
 
 _viewport_draw_border_internal:
+    @save_context
     mov r14, [r12 + VP_W]
     add r14, 1
     mov r15, [r12 + VP_H]
@@ -395,6 +371,9 @@ _viewport_draw_border_internal:
     call _cursor_goto_xy
     mov rdi, b_v
     call PrintString
+    mov rdi, [r12 + VP_Y]
+    add rdi, r13
+    inc rdi
     mov rsi, [r12 + VP_X]
     add rsi, [r12 + VP_W]
     add rsi, 2
@@ -421,6 +400,7 @@ _viewport_draw_border_internal:
     loop .b_loop
     mov rdi, b_br
     call PrintString
+    @restore_context
     ret
 
 ; --- [ Scroll Viewport ] ---

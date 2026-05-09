@@ -1,0 +1,18 @@
+; math.mac - Wiskundige macros
+%ifndef MATH_MAC
+    %define MATH_MAC
+
+; Genereer een random getal (RAX)
+%macro @rand 0
+    extern _math_rand
+    call _math_rand
+%endmacro
+
+; Stel de random seed in
+%macro @rand_seed 1
+    mov rdi, %1
+    extern _math_rand_seed
+    call _math_rand_seed
+%endmacro
+
+%endif

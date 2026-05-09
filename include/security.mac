@@ -1,0 +1,14 @@
+; security.mac - Security macros
+%ifndef SECURITY_MAC
+    %define SECURITY_MAC
+
+; Encodeer naar Base64
+%macro @base64_encode 3
+    mov rdi, %1
+    mov rsi, %2
+    mov rdx, %3
+    extern _base64_encode
+    call _base64_encode
+%endmacro
+
+%endif
