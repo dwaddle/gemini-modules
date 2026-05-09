@@ -17,11 +17,20 @@
 %define VP_FG       56
 %define VP_BG       57
 %define VP_FLAGS    58
+%define VP_B_FG     59
+%define VP_B_BG     60
 %define VP_TITLE    64
-%define VP_SIZE     72
+%define VP_SIZE     80
 
 ; Viewport Flags
-%define VPF_BORDER  1
+%define VPF_BORDER      1
+%define VPF_AUTOSCROLL  2
+%define VPF_FOCUS       4
+
+; Alignment Modes
+%define ALIGN_LEFT      0
+%define ALIGN_CENTER    1
+%define ALIGN_RIGHT     2
 
 ; --- Algemene Scherm Macro's ---
 %macro @cls 0
@@ -79,10 +88,62 @@
     call _viewport_render
 %endmacro
 
+%macro @screen_flip 0
+    call _screen_flip
+%endmacro
+
 %macro @vp_scroll 2
     mov rdi, %1
     mov rsi, %2
     call _viewport_scroll
+%endmacro
+
+%macro @vp_clear 1
+    mov rdi, %1
+    call _viewport_clear
+%endmacro
+
+%macro @vp_move 3
+    mov rdi, %1
+    mov rsi, %2
+    mov rdx, %3
+    call _viewport_move
+%endmacro
+
+; Border kleur instellen
+%macro @vp_set_border_color 3
+    mov rdi, %1
+    mov rsi, %2 ; FG
+    mov rdx, %3 ; BG
+    call _viewport_set_border_color
+%endmacro
+
+; Focus instellen
+%macro @vp_set_focus 2
+    mov rdi, %1
+    mov rsi, %2 ; 1 = focus, 0 = blur
+    call _viewport_set_focus
+%endmacro
+
+; Schrijf met uitlijning
+%macro @vp_write_aligned 4
+    mov rdi, %1 ; VP
+    mov rsi, %2 ; LY
+    mov rdx, %3 ; StrPtr
+    mov rcx, %4 ; Mode (ALIGN_*)
+    call _viewport_write_aligned
+%endmacro
+
+; Schakel autoscroll in/uit
+%macro @vp_set_autoscroll 2
+    mov rdi, %1
+    test rsi, rsi
+    jz %%disable
+    or byte [rdi + VP_FLAGS], VPF_AUTOSCROLL
+    jmp %%done
+%%disable:
+    and byte [rdi + VP_FLAGS], ~VPF_AUTOSCROLL
+%%done:
 %endmacro
 
 ; --- Input Box Widget Macro's ---

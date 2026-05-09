@@ -48,6 +48,10 @@ global ReadChar
 global TerminalRawMode
 global TerminalResetMode
 global IsKeyAvailable
+global SerialOpen
+global SerialConfig
+global SerialWrite
+global SerialRead
 
 extern _int_to_str, _strlen, _screen_reset_color
 

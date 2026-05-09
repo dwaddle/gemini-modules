@@ -12,8 +12,8 @@ section .data
     msg_test_argv db "Test: CLI Arguments", 10, 0
     msg_test_list db "Test: Linked List", 10, 0
     msg_test_b64  db "Test: Base64 Encode", 10, 0
-    test_data     db "Hello Gemini! This is a test of the hex dump utility.", 0
-    test_b64_src  db "Gemini", 0
+    test_data     db "Hello Professional ASM! This is a test of the hex dump utility.", 0
+    test_b64_src  db "Professional ASM", 0
     
     msg_argc      db "Argc: ", 0
     msg_argv0     db "Argv[0]: ", 0

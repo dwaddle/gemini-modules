@@ -10,7 +10,7 @@ section .data
     msg_ok     db " [OK]", 10, 0
     msg_fail   db " [FAIL] (Check permissions / port exists)", 10, 0
     
-    test_data  db "Hello from Gemini Serial Module!", 10, 0
+    test_data  db "Hello from Professional ASM Serial Module!", 10, 0
     test_len   equ $ - test_data
 
 section .bss

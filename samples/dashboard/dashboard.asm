@@ -12,7 +12,7 @@ section .data
     mem_lbl     db "Memory: ", 0
     buffer_msg  db "Virtual Viewport Active", 0
     press_key   db "Press any key to scroll...", 0
-    footer      db "Copyright (c) 2026 - Gemini Modules", 0
+    footer      db "Copyright (c) 2026 - Professional ASM Modules", 0
 
 section .bss
     vp_main     resq 1

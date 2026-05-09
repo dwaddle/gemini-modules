@@ -12,8 +12,15 @@
 %define COL_CYAN    6
 %define COL_WHITE   7
 
+; Screen Dimensions
+%define SCR_W       80
+%define SCR_H       24
+%define SCR_SIZE    (SCR_W * SCR_H)
+
 ; Viewport Flags
-%define VPF_NONE    0
-%define VPF_BORDER  1
+%define VPF_NONE        0
+%define VPF_BORDER      1
+%define VPF_AUTOSCROLL  2
+%define VPF_FOCUS       4
 
 %endif

@@ -163,6 +163,7 @@ section .data
     .bar db "| ", 0
     hex_chars db "0123456789ABCDEF"
 
+section .text
 ; --- [ Debug: Dump Registers ] ---
 ; Input: RDI = Pointer naar de opgeslagen registers op de stack
 _debug_dump_regs:

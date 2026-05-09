@@ -24,15 +24,74 @@ section .data
     t_pre  db ' [', 0
     t_post db '] ', 0
 
+    ; --- Screen Engine Data ---
+    screen_buffer   dq 0        ; Pointer naar SCR_SIZE bytes
+    screen_initialized db 0
+
 section .text
     global _screen_clear, _screen_reset_color, _screen_set_bgcolor, _screen_hide_cursor, _screen_show_cursor
+    global _screen_init, _screen_flip
     global _viewport_create, _viewport_write, _viewport_render, _viewport_scroll, _viewport_set_color, _viewport_set_border, _viewport_set_title
+    global _viewport_clear, _viewport_move, _viewport_write_aligned, _viewport_set_border_color, _viewport_set_focus
     
     extern PrintString, _int_to_str, _mem_alloc, _mem_set, _mem_copy, _cursor_goto_xy, _strlen
 
+; --- [ Screen: Initialiseer Back Buffer ] ---
+_screen_init:
+    push rbx
+    cmp byte [screen_initialized], 1
+    je .done
+    
+    mov rdi, SCR_SIZE
+    call _mem_alloc
+    mov [screen_buffer], rax
+    
+    ; Clear buffer initially
+    mov rdi, rax
+    mov rsi, ' '
+    mov rdx, SCR_SIZE
+    call _mem_set
+    
+    mov byte [screen_initialized], 1
+.done:
+    pop rbx
+    ret
+
+; --- [ Screen: Flip (Commit Back Buffer naar Terminal) ] ---
+_screen_flip:
+    @save_callee_saved
+    mov r12, [screen_buffer]
+    test r12, r12
+    jz .done
+    
+    call _screen_hide_cursor
+    
+    xor r13, r13        ; R13 = Huidige regel
+.row_loop:
+    mov rdi, r13
+    inc rdi
+    mov rsi, 1
+    call _cursor_goto_xy
+    
+    mov rax, SYS_WRITE
+    mov rdi, 1
+    mov rsi, r12
+    mov rdx, SCR_W
+    syscall
+    
+    add r12, SCR_W
+    inc r13
+    cmp r13, SCR_H
+    jl .row_loop
+    
+    call _screen_show_cursor
+.done:
+    @restore_callee_saved
+    ret
+
 ; --- [ Viewport Aanmaken ] ---
 _viewport_create:
-    @save_context
+    @save_callee_saved
     mov r12, rdi ; X
     mov r13, rsi ; Y
     mov r14, rdx ; W
@@ -51,6 +110,8 @@ _viewport_create:
     mov qword [rax + VP_VIEW_Y], 0
     mov byte [rax + VP_FG], COL_WHITE
     mov byte [rax + VP_BG], COL_BLACK
+    mov byte [rax + VP_B_FG], COL_WHITE
+    mov byte [rax + VP_B_BG], COL_BLACK
     mov byte [rax + VP_FLAGS], VPF_NONE
     mov qword [rax + VP_TITLE], 0
 
@@ -69,7 +130,7 @@ _viewport_create:
     call _mem_set
 
     mov rax, rbx
-    @restore_context
+    @restore_callee_saved
     ret
 
 ; --- [ Viewport Kleur Instellen ] ---
@@ -89,14 +150,74 @@ _viewport_set_border:
     ret
 
 ; --- [ Viewport Titel Instellen ] ---
-; Input: RDI=VP, RSI=Titel String Pointer
 _viewport_set_title:
     mov [rdi + VP_TITLE], rsi
     ret
 
+; --- [ Viewport Border Kleur Instellen ] ---
+_viewport_set_border_color:
+    mov [rdi + VP_B_FG], sil
+    mov [rdi + VP_B_BG], dl
+    ret
+
+; --- [ Viewport Focus Instellen ] ---
+_viewport_set_focus:
+    test rsi, rsi
+    jz .blur
+    or byte [rdi + VP_FLAGS], VPF_FOCUS
+    ret
+.blur:
+    and byte [rdi + VP_FLAGS], ~VPF_FOCUS
+    ret
+
+; --- [ Schrijf naar Viewport met Uitlijning ] ---
+_viewport_write_aligned:
+    @save_callee_saved
+    mov r12, rdi ; VP
+    mov r13, rsi ; LY
+    mov r14, rdx ; StrPtr
+    mov r15, rcx ; Align
+
+    mov rdi, r14
+    call _strlen
+    mov rbx, rax
+
+    xor rsi, rsi
+    cmp r15, ALIGN_CENTER
+    je .center
+    cmp r15, ALIGN_RIGHT
+    je .right
+    jmp .do_write
+
+.center:
+    mov rax, [r12 + VP_W]
+    sub rax, rbx
+    js .set_zero
+    shr rax, 1
+    mov rsi, rax
+    jmp .do_write
+
+.right:
+    mov rax, [r12 + VP_W]
+    sub rax, rbx
+    js .set_zero
+    mov rsi, rax
+    jmp .do_write
+
+.set_zero:
+    xor rsi, rsi
+
+.do_write:
+    mov rdi, r12
+    mov rdx, r13
+    mov rcx, r14
+    call _viewport_write
+    @restore_callee_saved
+    ret
+
 ; --- [ Schrijf naar Viewport ] ---
 _viewport_write:
-    @save_context
+    @save_callee_saved
     mov r12, rdi ; VP
     mov r13, rsi ; Current LX
     mov r14, rdx ; Current LY
@@ -105,11 +226,10 @@ _viewport_write:
 .loop:
     movzx rax, byte [r15]
     test al, al
-    jz .done
+    jz .check_autoscroll
     cmp r14, [r12 + VP_BUF_H]
-    jae .done
+    jae .check_autoscroll
     
-    ; Geen word wrapping voor nu, gewoon letter per letter voor stabiliteit
     mov rdi, r12
     mov rsi, r15
     mov rdx, 1
@@ -124,8 +244,27 @@ _viewport_write:
     inc r14
     jmp .loop
 
+.check_autoscroll:
+    test byte [r12 + VP_FLAGS], VPF_AUTOSCROLL
+    jz .done
+    
+    mov rax, [r12 + VP_VIEW_Y]
+    add rax, [r12 + VP_H]
+    dec rax
+    cmp r14, rax
+    jle .done
+    
+    mov rax, r14
+    sub rax, [r12 + VP_H]
+    inc rax
+    test rax, rax
+    jns .set_scroll
+    xor rax, rax
+.set_scroll:
+    mov [r12 + VP_VIEW_Y], rax
+
 .done:
-    @restore_context
+    @restore_callee_saved
     ret
 
 _write_segment:
@@ -137,22 +276,17 @@ _write_segment:
     push rsi
     push r10
     push r12
-    
     mov r12, rdi
     mov rbx, rsi
     mov r10, rdx
-    
-    ; Buffer offset = (LY * W) + LX
     mov rax, r14
     mul qword [r12 + VP_W]
     add rax, r13
     add rax, [r12 + VP_BUF]
-    
     mov rdi, rax
     mov rsi, rbx
     mov rdx, r10
     call _mem_copy
-    
     pop r12
     pop r10
     pop rsi
@@ -163,249 +297,116 @@ _write_segment:
     pop rax
     ret
 
-_find_next_word:
-    push rsi
-    push rdi
-    push r8
-    push r10
-    mov rsi, rdi
-    mov r10, 0
-.skip_spaces_find:
-    cmp byte [rsi], ' '
-    jne .word_start_find
-    cmp byte [rsi], 0
-    je .end_of_string_find
-    inc rsi
-    jmp .skip_spaces_find
-.word_start_find:
-    mov rdi, rsi
-.count_word_len_find:
-    movzx r8, byte [rsi + r10]
-    cmp r8, 0
-    je .word_found
-    cmp r8, ' '
-    je .word_found
-    inc r10
-    jmp .count_word_len_find
-.word_found:
-    mov rax, rdi
-    mov rdx, r10
-    jmp .done_find
-.end_of_string_find:
-    xor rax, rax
-    xor rdx, rdx
-.done_find:
-    pop r10
-    pop r8
-    pop rdi
-    pop rsi
-    ret
-
 ; --- [ Render Viewport ] ---
 _viewport_render:
-    @save_context
+    @save_callee_saved
     mov r12, rdi ; VP
-    call _screen_hide_cursor
+    call _screen_init
+    
+    ; Note: Colors are currently not supported in the double-buffer char array.
+    ; This would require a separate attribute buffer.
+    
     test byte [r12 + VP_FLAGS], VPF_BORDER
     jz .skip_border
-    push r13
     call _viewport_draw_border_internal
-    pop r13
 .skip_border:
-    push r12
-    call _viewport_apply_color_internal
-    pop r12
-    mov r13, 0
+
+    mov r13, 0          ; R13 = Viewport line
 .line_loop:
     mov rax, [r12 + VP_VIEW_Y]
     add rax, r13
     cmp rax, [r12 + VP_BUF_H]
     jae .done_rendering
+    
     mul qword [r12 + VP_W]
     add rax, [r12 + VP_BUF]
-    mov r14, rax
-    mov rdi, [r12 + VP_Y]
-    add rdi, r13
-    inc rdi
-    mov rsi, [r12 + VP_X]
-    inc rsi
+    mov r14, rax        ; Source
+    
+    mov rax, [r12 + VP_Y]
+    add rax, r13
     test byte [r12 + VP_FLAGS], VPF_BORDER
-    jz .no_border_offset
-    inc rdi
-    inc rsi
-.no_border_offset:
-    call _cursor_goto_xy
-    mov rax, SYS_WRITE
-    mov rdi, 1
+    jz .no_off_y
+    inc rax
+.no_off_y:
+    cmp rax, SCR_H
+    jae .next_line
+    
+    imul rax, SCR_W
+    add rax, [r12 + VP_X]
+    test byte [r12 + VP_FLAGS], VPF_BORDER
+    jz .no_off_x
+    inc rax
+.no_off_x:
+    add rax, [screen_buffer]
+    mov rdi, rax        ; Dest
+    
     mov rsi, r14
     mov rdx, [r12 + VP_W]
-    syscall
+    call _mem_copy
+
+.next_line:
     inc r13
     cmp r13, [r12 + VP_H]
     jb .line_loop
-.done_rendering:
-    call _screen_reset_color
-    call _screen_show_cursor
-    @restore_context
-    ret
 
-_viewport_apply_color_internal:
-    mov rdi, esc_fg_pre
-    call PrintString
-    movzx rax, byte [r12 + VP_FG]
-    sub rsp, 16
-    add al, '0'
-    mov [rsp], al
-    mov byte [rsp+1], 'm'
-    mov byte [rsp+2], 0
-    mov rdi, rsp
-    call PrintString
-    add rsp, 16
-    mov rdi, esc_bg_pre
-    call PrintString
-    movzx rax, byte [r12 + VP_BG]
-    sub rsp, 16
-    add al, '0'
-    mov [rsp], al
-    mov byte [rsp+1], 'm'
-    mov byte [rsp+2], 0
-    mov rdi, rsp
-    call PrintString
-    add rsp, 16
+.done_rendering:
+    @restore_callee_saved
     ret
 
 _viewport_draw_border_internal:
-    @save_context
-    mov r14, [r12 + VP_W]
-    add r14, 1
-    mov r15, [r12 + VP_H]
-    add r15, 1
-    mov rdi, [r12 + VP_Y]
+    ; Simpele implementatie die direct naar de screen_buffer schrijft
+    @save_callee_saved
+    
+    ; Top row
+    mov rax, [r12 + VP_Y]
+    imul rax, SCR_W
+    add rax, [r12 + VP_X]
+    add rax, [screen_buffer]
+    mov rdi, rax
+    mov byte [rdi], '+'
     inc rdi
-    mov rsi, [r12 + VP_X]
-    inc rsi
-    call _cursor_goto_xy
-    mov rdi, b_tl
-    call PrintString
-    
-    ; Top edge with optional Title
-    mov rbx, [r12 + VP_TITLE]
-    test rbx, rbx
-    jnz .draw_with_title
-    
     mov rcx, [r12 + VP_W]
-.t_loop:
-    mov rdi, b_h
-    push rcx
-    call PrintString
-    pop rcx
-    loop .t_loop
-    jmp .draw_corners
-
-.draw_with_title:
-    ; Bereken title lengte
-    mov rdi, rbx
-    call _strlen
-    mov r13, rax ; Titel lengte
+    mov al, '-'
+    rep stosb
+    mov byte [rdi], '+'
     
-    ; Hoeveel streepjes links? (W - title_len - 4) / 2
-    mov rax, [r12 + VP_W]
-    sub rax, r13
-    sub rax, 4 ; Ruimte voor " [] "
-    js .no_space_for_title
-    shr rax, 1 ; / 2
-    mov rcx, rax
-    push rax
-.tl_loop:
-    mov rdi, b_h
-    push rcx
-    call PrintString
-    pop rcx
-    loop .tl_loop
-    
-    mov rdi, t_pre
-    call PrintString
-    mov rdi, rbx ; De titel zelf
-    call PrintString
-    mov rdi, t_post
-    call PrintString
-    
-    ; Streepjes rechts opvullen
-    pop rax
+    ; Bottom row
+    mov rax, [r12 + VP_Y]
+    add rax, [r12 + VP_H]
+    inc rax
+    imul rax, SCR_W
+    add rax, [r12 + VP_X]
+    add rax, [screen_buffer]
+    mov rdi, rax
+    mov byte [rdi], '+'
+    inc rdi
     mov rcx, [r12 + VP_W]
-    sub rcx, rax
-    sub rcx, r13
-    sub rcx, 4
-.tr_loop:
-    cmp rcx, 0
-    jle .draw_corners
-    mov rdi, b_h
-    push rcx
-    call PrintString
-    pop rcx
-    loop .tr_loop
-    jmp .draw_corners
-
-.no_space_for_title:
-    ; Geen ruimte, teken gewoon streepjes
-    mov rcx, [r12 + VP_W]
-.ts_loop:
-    mov rdi, b_h
-    push rcx
-    call PrintString
-    pop rcx
-    loop .ts_loop
-
-.draw_corners:
-    mov rdi, b_tr
-    call PrintString
+    mov al, '-'
+    rep stosb
+    mov byte [rdi], '+'
+    
+    ; Sides
     mov rcx, [r12 + VP_H]
     mov r13, 1
 .v_loop:
-    push rcx
-    mov rdi, [r12 + VP_Y]
-    add rdi, r13
-    inc rdi
-    mov rsi, [r12 + VP_X]
-    inc rsi
-    call _cursor_goto_xy
-    mov rdi, b_v
-    call PrintString
-    mov rdi, [r12 + VP_Y]
-    add rdi, r13
-    inc rdi
-    mov rsi, [r12 + VP_X]
-    add rsi, [r12 + VP_W]
-    add rsi, 2
-    call _cursor_goto_xy
-    mov rdi, b_v
-    call PrintString
+    mov rax, [r12 + VP_Y]
+    add rax, r13
+    imul rax, SCR_W
+    add rax, [r12 + VP_X]
+    add rax, [screen_buffer]
+    mov byte [rax], '|'
+    add rax, [r12 + VP_W]
+    inc rax
+    mov byte [rax], '|'
     inc r13
-    pop rcx
     loop .v_loop
-    mov rdi, [r12 + VP_Y]
-    add rdi, [r12 + VP_H]
-    add rdi, 2
-    mov rsi, [r12 + VP_X]
-    inc rsi
-    call _cursor_goto_xy
-    mov rdi, b_bl
-    call PrintString
-    mov rcx, [r12 + VP_W]
-.b_loop:
-    mov rdi, b_h
-    push rcx
-    call PrintString
-    pop rcx
-    loop .b_loop
-    mov rdi, b_br
-    call PrintString
-    @restore_context
+
+    @restore_callee_saved
     ret
 
 ; --- [ Scroll Viewport ] ---
 _viewport_scroll:
-    @save_context
+    @save_callee_saved
     mov r12, rdi
     mov rax, [r12 + VP_VIEW_Y]
     add rax, rsi
@@ -421,9 +422,7 @@ _viewport_scroll:
     xor rax, rax
 .update:
     mov [r12 + VP_VIEW_Y], rax
-    mov rdi, r12
-    call _viewport_render
-    @restore_context
+    @restore_callee_saved
     ret
 
 ; --- [ Basis Functies ] ---
@@ -444,7 +443,7 @@ _screen_show_cursor:
     call PrintString
     ret
 _screen_set_bgcolor:
-    @save_context
+    @save_callee_saved
     mov r12, rdi
     mov rdi, esc_bg_pre
     call PrintString
@@ -456,5 +455,25 @@ _screen_set_bgcolor:
     mov rdi, rsp
     call PrintString
     add rsp, 16
-    @restore_context
+    @restore_callee_saved
+    ret
+
+; --- [ Viewport Leegmaken ] ---
+_viewport_clear:
+    @save_callee_saved
+    mov r12, rdi
+    mov rdi, [r12 + VP_BUF]
+    mov rsi, ' '
+    mov rax, [r12 + VP_BUF_H]
+    mul qword [r12 + VP_W]
+    mov rdx, rax
+    call _mem_set
+    mov qword [r12 + VP_VIEW_Y], 0
+    @restore_callee_saved
+    ret
+
+; --- [ Viewport Verplaatsen ] ---
+_viewport_move:
+    mov [rdi + VP_X], rsi
+    mov [rdi + VP_Y], rdx
     ret

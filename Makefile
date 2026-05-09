@@ -1,4 +1,4 @@
-# Makefile for Gemini Modules Tests
+# Makefile for Professional ASM Modules Tests
 
 # Tools
 ASM = nasm
@@ -77,6 +77,12 @@ test_serial: $(OBJ_DIR)/test_serial
 
 test_new_modules: $(OBJ_DIR)/test_new_modules
 	./$(OBJ_DIR)/test_new_modules
+
+test_ui_advanced: $(OBJ_DIR)/test_ui_advanced
+	./$(OBJ_DIR)/test_ui_advanced
+
+test_ui_pro: $(OBJ_DIR)/test_ui_pro
+	./$(OBJ_DIR)/test_ui_pro
 
 # Sample target
 dashboard: $(OBJ_DIR)/dashboard
