@@ -99,6 +99,13 @@ $(OBJ_DIR)/gtop: samples/gtop/gtop.asm $(ALL_MODULES)
 	$(ASM) $(ASM_FLAGS) samples/gtop/gtop.asm -o $(OBJ_DIR)/gtop.o
 	$(LD) $(LD_FLAGS) $(OBJ_DIR)/gtop.o $(ALL_MODULES) -o $@
 
+asm-help: $(OBJ_DIR)/asm-help
+	@# No-op run, expects arguments
+
+$(OBJ_DIR)/asm-help: samples/asm_help.asm $(ALL_MODULES)
+	$(ASM) $(ASM_FLAGS) samples/asm_help.asm -o $(OBJ_DIR)/asm-help.o
+	$(LD) $(LD_FLAGS) $(OBJ_DIR)/asm-help.o $(ALL_MODULES) -o $@
+
 # Run all tests
 run_tests: $(TESTS)
 

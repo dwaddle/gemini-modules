@@ -30,37 +30,52 @@ section .text
     global _slab_alloc_node, _slab_free_node
 
 ; --- [ Geheugen Alloceren (malloc style) ] ---
-; Gebruikt mmap voor stabiliteit en minder fragmentatie
 _mem_alloc:
     @save_callee_saved
-    mov r12, rdi        ; R12 = requested size
-    
-    ; Voeg header toe
+    mov r12, rdi
     add rdi, MEM_BLOCK_HEADER_SIZE
     
-    ; Voor grote allocaties (> 4KB), gebruik mmap
     cmp r12, 4032
     ja .use_mmap
     
-    ; Standaard heap (brk) voor kleine blokken
+    ; Search free list first (First Fit)
+    mov rdi, [free_list_head]
+.search_loop:
+    test rdi, rdi
+    jz .extend_heap
+    
+    mov rax, [rdi + MEM_BLOCK_SIZE]
+    cmp rax, r12
+    jae .found_free
+    
+    mov rdi, [rdi + MEM_BLOCK_NEXT]
+    jmp .search_loop
+
+.found_free:
+    ; RDI is found header
+    push rdi
+    call _remove_from_free_list
+    pop rdi
+    and qword [rdi + MEM_BLOCK_FLAGS], ~MEM_FLAG_FREE
+    add rdi, MEM_BLOCK_HEADER_SIZE
+    mov rax, rdi
+    jmp .done
+
+.extend_heap:
     call _internal_brk_alloc
     jmp .done
 
 .use_mmap:
-    ; SYS_MMAP: rdi=addr, rsi=len, rdx=prot, r10=flags, r8=fd, r9=off
-    mov rsi, rdi        ; len
-    xor rdi, rdi        ; addr=0
-    mov rdx, 3          ; PROT_READ | PROT_WRITE
-    mov r10, 34         ; MAP_PRIVATE | MAP_ANONYMOUS
-    mov r8, -1          ; fd
-    xor r9, r9          ; offset
-    mov rax, 9          ; SYS_MMAP
+    mov rsi, rdi
+    xor rdi, rdi
+    mov rdx, 3
+    mov r10, 34
+    mov r8, -1
+    xor r9, r9
+    mov rax, 9
     syscall
-    
     test rax, rax
     js .error
-    
-    ; Setup header
     mov qword [rax + MEM_BLOCK_SIZE], r12
     mov qword [rax + MEM_BLOCK_FLAGS], MEM_FLAG_MMAP
     add rax, MEM_BLOCK_HEADER_SIZE
@@ -74,55 +89,69 @@ _mem_alloc:
 
 ; --- [ Geheugen Vrijgeven (free style) ] ---
 _mem_free:
+    @save_callee_saved
     test rdi, rdi
     jz .done
     
     sub rdi, MEM_BLOCK_HEADER_SIZE
-    mov rsi, [rdi + MEM_BLOCK_FLAGS]
+    mov r12, rdi
     
+    mov rsi, [r12 + MEM_BLOCK_FLAGS]
     test rsi, MEM_FLAG_MMAP
     jnz .free_mmap
     
-    ; Markeer als vrij in heap (coalescing weggelaten voor eenvoud hier)
-    or qword [rdi + MEM_BLOCK_FLAGS], MEM_FLAG_FREE
-    ret
+    ; Mark as free and add to list
+    or qword [r12 + MEM_BLOCK_FLAGS], MEM_FLAG_FREE
+    mov rdi, r12
+    call _add_to_free_list
+    
+    ; Coalesce with next
+    mov rbx, [r12 + MEM_BLOCK_SIZE]
+    lea r13, [r12 + rbx + MEM_BLOCK_HEADER_SIZE]
+    cmp r13, [heap_current]
+    jae .done
+    test qword [r13 + MEM_BLOCK_FLAGS], MEM_FLAG_FREE
+    jz .done
+    
+    mov rdi, r13
+    call _remove_from_free_list
+    mov rax, [r13 + MEM_BLOCK_SIZE]
+    add rax, MEM_BLOCK_HEADER_SIZE
+    add [r12 + MEM_BLOCK_SIZE], rax
+    jmp .done
 
 .free_mmap:
-    mov rsi, [rdi + MEM_BLOCK_SIZE]
+    mov rsi, [r12 + MEM_BLOCK_SIZE]
     add rsi, MEM_BLOCK_HEADER_SIZE
-    ; RDI is al header pointer
-    mov rax, 11         ; SYS_MUNMAP
+    mov rdi, r12
+    mov rax, 11
     syscall
 .done:
+    @restore_callee_saved
     ret
 
-; --- [ Slab Allocator voor Nodes ] ---
+; --- [ Slab Allocator ] ---
 _slab_alloc_node:
     push rbx
     mov rbx, [slab_node_head]
     test rbx, rbx
     jnz .use_existing
-    
-    ; Geen vrije nodes, alloceer nieuwe pagina
     mov rdi, SLAB_BLOCK_SIZE
     call _mem_alloc
     test rax, rax
     jz .error
-    
-    ; Verdeel pagina in nodes en link ze
     mov rbx, rax
     mov rcx, (SLAB_BLOCK_SIZE / SLAB_NODE_SIZE) - 1
     mov rdi, rbx
 .link_loop:
     lea rsi, [rdi + SLAB_NODE_SIZE]
-    mov [rdi], rsi      ; node->next = next_node
+    mov [rdi], rsi
     mov rdi, rsi
     loop .link_loop
-    mov qword [rdi], 0  ; Laatste is null
-
+    mov qword [rdi], 0
 .use_existing:
     mov rax, rbx
-    mov rsi, [rbx]      ; rsi = node->next
+    mov rsi, [rbx]
     mov [slab_node_head], rsi
     pop rbx
     ret
@@ -135,19 +164,45 @@ _slab_free_node:
     test rdi, rdi
     jz .done
     mov rsi, [slab_node_head]
-    mov [rdi], rsi      ; node->next = current_head
+    mov [rdi], rsi
     mov [slab_node_head], rdi
 .done:
     ret
 
-; --- Interne helpers ---
+; --- Free List Helpers ---
+_add_to_free_list:
+    mov rsi, [free_list_head]
+    mov [rdi + MEM_BLOCK_NEXT], rsi
+    mov qword [rdi + MEM_BLOCK_PREV], 0
+    test rsi, rsi
+    jz .set_head
+    mov [rsi + MEM_BLOCK_PREV], rdi
+.set_head:
+    mov [free_list_head], rdi
+    ret
+
+_remove_from_free_list:
+    mov rsi, [rdi + MEM_BLOCK_PREV]
+    mov rdx, [rdi + MEM_BLOCK_NEXT]
+    test rsi, rsi
+    jz .rem_head
+    mov [rsi + MEM_BLOCK_NEXT], rdx
+    jmp .rem_next
+.rem_head:
+    mov [free_list_head], rdx
+.rem_next:
+    test rdx, rdx
+    jz .rem_done
+    mov [rdx + MEM_BLOCK_PREV], rsi
+.rem_done:
+    ret
+
+; --- Internal Helpers ---
 _internal_brk_alloc:
-    ; Bestaande brk implementatie (vereenvoudigd)
-    ; (Voor productie zou hier een volledige free-list manager zitten)
     mov rsi, [heap_current]
     test rsi, rsi
     jnz .ready
-    mov rax, 12 ; SYS_BRK
+    mov rax, 12
     xor rdi, rdi
     syscall
     mov [heap_start], rax
@@ -157,7 +212,7 @@ _internal_brk_alloc:
     mov rdi, rsi
     add rdi, r12
     add rdi, MEM_BLOCK_HEADER_SIZE
-    mov rax, 12 ; SYS_BRK
+    mov rax, 12
     syscall
     mov rax, rsi
     mov [heap_current], rdi
@@ -166,20 +221,15 @@ _internal_brk_alloc:
     add rax, MEM_BLOCK_HEADER_SIZE
     ret
 
-; --- [ Geheugen Kopiëren ] ---
 _mem_copy:
     mov rcx, rdx
     rep movsb
     ret
-
-; --- [ Geheugen Vullen ] ---
 _mem_set:
     mov rax, rsi
     mov rcx, rdx
     rep stosb
     ret
-
-; --- [ Geheugen Vergelijken ] ---
 _mem_compare:
     mov rcx, rdx
     repe cmpsb

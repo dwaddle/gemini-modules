@@ -20,7 +20,6 @@
     push r15
 %endmacro
 
-; Restore all general purpose registers except RAX
 %macro @restore_context 0
     pop r15
     pop r14
@@ -58,7 +57,7 @@
     pop rbx
 %endmacro
 
-; Safe register clear that doesn't affect flags except ZF/SF/PF
+; Safe register clear
 %macro @clear 1
     xor %1, %1
 %endmacro
@@ -66,11 +65,7 @@
 ; Exit program
 %macro @exit 1
     mov rax, 60
-    %ifnum %1
-        mov rdi, %1
-    %else
-        mov rdi, %1
-    %endif
+    mov rdi, %1
     syscall
 %endmacro
 
@@ -84,6 +79,18 @@
 %macro @restore_stack 0
     mov rsp, rbp
     pop rbp
+%endmacro
+
+; Macro for industrial error handling after a syscall
+; Checks RAX for negative values (errors)
+%macro @check_syscall 0
+    test rax, rax
+    js %%error
+    jmp %%done
+%%error:
+    neg rax             ; Get positive error code
+    ; Hier zouden we een globale panic handler kunnen aanroepen
+%%done:
 %endmacro
 
 %endif
